@@ -124,7 +124,7 @@ class Main {
 		info.style.width = '100%';
 		info.style.textAlign = 'center';
 		info.style.color = 'white';
-		info.innerHTML = '<a href="https://github.com/Tw1ddle/Stereoscopics" target="_blank">Stereoscopics</a> by <a href="http://www.samcodes.co.uk/" target="_blank">Sam Twidale</a>.';
+		info.innerHTML = '<a href="https://github.com/Tw1ddle/Amsterdam-Light-Show-2016" target="_blank">Biomimetics</a> by <a href="http://www.samcodes.co.uk/" target="_blank">Sam Twidale</a> & <a href="http://harishpersad.tumblr.com/" target="_blank">Harish Persad</a>.';
 		container.appendChild(info);
 		
 		var width = Browser.window.innerWidth * renderer.getPixelRatio();
