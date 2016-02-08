@@ -2,7 +2,9 @@
 
 WORK IN PROGRESS.
 
-Amsterdam Light Show concept work by [Harish Persad](http://harishpersad.tumblr.com/) and [Sam Twidale](http://samcodes.co.uk/code/).
+Amsterdam Light Show concept work by [Harish Persad](http://harishpersad.tumblr.com/) and [Sam Twidale](http://samcodes.co.uk/code/). The theme is biomimetics.
+
+See the concept [in your browser](http://tw1ddle.github.io/Amsterdam-Light-Show-2016/).
 
 ## Features ##
 * Shaders that work on a webcam feed to produce a disruptive pattern.
