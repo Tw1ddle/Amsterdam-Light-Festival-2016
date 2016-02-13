@@ -1,0 +1,110 @@
+// Jump flooding algorithm for Euclidean distance transform, according to Danielsson (1980) and Guodong Rong (2007).
+// This code represents one iteration of the flood filling.
+// You need to run it multiple times with different step lengths to perform a full distance transformation.
+
+// Adapted for three.js demo by Sam Twidale.
+// Original implementation by Stefan Gustavson 2010.
+// This code is in the public domain.
+
+varying vec2 vUv;
+varying float stepu;
+varying float stepv;
+
+uniform sampler2D tDiffuse;
+uniform float texw;
+uniform float texh;
+uniform float texLevels;
+
+// Helper function to remap unsigned normalized floats [0.0..1.0]
+// coming from a texture stored in integer format internally to a
+// signed float vector pointing exactly to a pixel centre in texture
+// space. The range of valid vectors is
+// [-1.0+0.5/texsize, 1.0-0.5/texsize], with the special value
+// -1.0-0.5*texsize (represented as integer 0) meaning
+// "distance vector still undetermined".
+// The mapping is carefully designed to map both 8 bit and 16
+// bit integer texture data to distinct and exact floating point
+// texture coordinate offsets and vice versa.
+// 8 bit integer textures can be used to transform images up to
+// size 128x128 pixels, and 16 bit integer textures can be used to
+// transform images up to 32768x32768, i.e. beyond the largest
+// texture size available in current implementations of OpenGL.
+// Direct use of integers in the shader (by means of texture2DRect
+// and GL_RG8I and GL_RG16I texture formats) could be faster, but-1
+// this code is conveniently compatible even with version 1.2 of GLSL
+// (i.e. OpenGL 2.1), and the main shader is limited by texture access
+// and branching, not ALU capacity, so a few extra multiplications
+// for indexing and output storage are not that bad.
+vec2 remap(vec2 floatdata)
+{
+     return floatdata * (texLevels - 1.0) / texLevels * 2.0 - 1.0;
+}
+
+vec2 remap_inv(vec2 floatvec)
+{
+     return (floatvec + 1.0) * 0.5 * texLevels / (texLevels - 1.0);
+}
+
+// TODO this isn't ideal, also will it work for most texture sizes?
+vec3 sampleTexture(sampler2D texture, vec2 vec)
+{
+	// The algorithm depends on the texture having a CLAMP_TO_BORDER attribute and a border color with R = 0.
+	// These explicit conditionals to avoid propagating incorrect vectors when looking outside of [0,1] in UV cause a slowdown of about 25%.
+	if(vec.x >= 1.0 || vec.y >= 1.0 || vec.x <= 0.0 || vec.y <= 0.0)
+	{
+		vec = clamp(vec, 0.0, 1.0);
+		return vec3(0.0, 0.0, 0.0);
+	}
+	
+	return texture2D(texture, vec).rgb;
+}
+
+void testCandidate(in vec2 stepvec, inout vec4 bestseed)
+{
+	vec2 newvec = vUv + stepvec; // Absolute position of that candidate
+	vec3 texel = sampleTexture(tDiffuse, newvec).rgb;
+	vec4 newseed; // Closest point from that candidate (xy), its AA distance (z) and its grayscale value (w)
+	newseed.xy = remap(texel.rg);
+	if(newseed.x > -0.99999) // If the new seed is not "indeterminate distance"
+	{
+		newseed.xy = newseed.xy + stepvec;
+		
+		// TODO: implement better equations for calculating the AA distance
+		// Try by getting the direction of the edge using the gradients of nearby edge pixels 
+		
+		float di = length(newseed.xy);
+		float df = texel.b - 0.5;
+		
+		// TODO: This AA assumes texw == texh. It does not allow for non-square textures.
+		newseed.z = di + (df / texw);
+		newseed.w = texel.b;
+		
+		if(newseed.z < bestseed.z)
+		{
+			bestseed = newseed;
+		}
+	}
+}
+
+void main()
+{
+	// Searches for better distance vectors among 8 candidates
+	vec3 texel = sampleTexture(tDiffuse, vUv).rgb;
+	
+	// Closest seed so far
+	vec4 bestseed;
+	bestseed.xy = remap(texel.rg);
+	bestseed.z = length(bestseed.xy) + (texel.b - 0.5) / texw; // Add AA edge offset to distance
+	bestseed.w = texel.b; // Save AA/grayscale value
+	
+	testCandidate(vec2(-stepu, -stepv), bestseed);
+	testCandidate(vec2(-stepu, 0.0), bestseed);
+	testCandidate(vec2(-stepu, stepv), bestseed);
+	testCandidate(vec2(0.0, -stepv), bestseed);
+	testCandidate(vec2(0.0, stepv), bestseed);
+	testCandidate(vec2(stepu, -stepv), bestseed);
+	testCandidate(vec2(stepu, 0.0), bestseed);
+	testCandidate(vec2(stepu, stepv), bestseed);
+	
+	gl_FragColor = vec4(remap_inv(bestseed.xy), bestseed.w, 1.0);
+}

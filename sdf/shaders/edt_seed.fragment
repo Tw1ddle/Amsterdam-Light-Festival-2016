@@ -1,0 +1,28 @@
+// Jump flooding algorithm for Euclidean distance transform, according to Danielsson (1980) and Guodong Rong (2007).
+// This shader initializes the distance field in preparation for the flood filling.
+
+// Adapted for three.js demo by Sam Twidale.
+// Original implementation by Stefan Gustavson 2010.
+// This code is in the public domain.
+
+varying vec2 vUv;
+
+uniform sampler2D tDiffuse;
+uniform float texLevels;
+
+void main()
+{
+	float texel = texture2D(tDiffuse, vUv).r;
+	
+	// Represents zero
+	float myzero = 0.5 * texLevels / (texLevels - 1.0);
+	
+	// Represents infinity/not-yet-calculated
+	float myinfinity = 0.0;
+	
+	// Sub-pixel AA distance
+	float aadist = texel;
+	
+	// Pixels > 0.5 are objects, others are background
+	gl_FragColor = vec4(vec2(texel > 0.99999 ? myinfinity : myzero), aadist, 1.0);
+}

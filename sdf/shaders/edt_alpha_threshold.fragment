@@ -1,0 +1,57 @@
+// Distance map contour texturing.
+// Simple alpha thresholding, produces wavey contours.
+
+// Adapted for three.js demo by Sam Twidale.
+// Original implementation by Stefan Gustavson 2011.
+// This code is in the public domain.
+
+varying vec2 vUv;
+varying float oneu;
+varying float onev;
+
+uniform sampler2D tDiffuse;
+uniform float texw;
+uniform float texh;
+uniform float texLevels;
+uniform float threshold;
+
+// Replacement for RSLs filterstep(), with fwidth() done right.
+// threshold is constant, value is smoothly varying
+float aastep(float threshold, float value)
+{
+	float afwidth = 0.7 * length(vec2(dFdx(value), dFdy(value)));
+	return smoothstep(threshold - afwidth, threshold + afwidth, value); // GLSLs fwidth(value) is abs(dFdx(value)) + abs(dFdy(value))
+}
+
+void main()
+{
+	// Scale texcoords to range ([0, texw], [0, texh])
+	vec2 uv = vUv * vec2(texw, texh);
+	
+	// Compute texel-local (u,v) coordinates for the four closest texels
+	vec2 uv00 = floor(uv - vec2(0.5)); // Lower left corner of lower left texel
+	vec2 uvlerp = uv - uv00 - vec2(0.5); // Texel-local lerp blends [0,1]
+	
+	// Center st00 on lower left texel and rescale to [0,1] for texture lookup
+	vec2 st00 = (uv00 + vec2(0.5)) * vec2(oneu, onev);
+	
+	// Compute distance value from four closest 8-bit RGBA texels
+	vec4 D00 = texture2D(tDiffuse, st00);
+	vec4 D10 = texture2D(tDiffuse, st00 + vec2(oneu, 0.0));
+	vec4 D01 = texture2D(tDiffuse, st00 + vec2(0.0, onev));
+	vec4 D11 = texture2D(tDiffuse, st00 + vec2(oneu, onev));
+
+	// Retrieve the B channel to get the original grayscale image
+	vec4 G = vec4(D00.b, D01.b, D10.b, D11.b);
+  
+	// Interpolate along v
+	G.xy = mix(G.xz, G.yw, uvlerp.y);
+
+	// Interpolate along u
+	float g = mix(G.x, G.y, uvlerp.x);
+
+	float c = aastep(threshold, g);
+	
+	// Final fragment color
+	gl_FragColor = vec4(vec3(c), 1.0);
+}

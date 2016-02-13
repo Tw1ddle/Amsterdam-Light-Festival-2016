@@ -6,8 +6,11 @@ import dat.GUI;
 import dat.ShaderGUI;
 import dat.ThreeObjectGUI;
 import js.Browser;
+import js.html.CanvasElement;
+import js.html.CanvasRenderingContext2D;
 import js.html.VideoElement;
-import shaders.Dazzle;
+import sdf.generator.SDFMaker;
+import shaders.EDT_DISPLAY_DEMO;
 import shaders.FXAA;
 import stats.Stats;
 import three.Color;
@@ -17,10 +20,10 @@ import three.PlaneGeometry;
 import three.postprocessing.EffectComposer;
 import three.Scene;
 import three.ShaderMaterial;
-import three.Side;
 import three.Texture;
-import three.TextureFilter;
+import three.UniformsUtils;
 import three.WebGLRenderer;
+import three.WebGLRenderTarget;
 import webgl.Detector;
 
 class Main {
@@ -29,21 +32,21 @@ class Main {
 	public static inline var TWITTER_URL:String = "https://twitter.com/Sam_Twidale";
 	public static inline var HAXE_URL:String = "http://haxe.org/";
 	
-	private var loaded:Bool = false;
-	
 	private var renderer:WebGLRenderer;
 	private var composer:EffectComposer;
 	private var aaPass:ShaderPass;
+	private var sdfMaker:SDFMaker;
 	
 	private var scene:Scene;
 	private var camera:PerspectiveCamera;
 	
 	private var videoElement:VideoElement;
-	private var videoTexture:Texture;
+	private var potVideoCanvas:CanvasElement;
+	private var potVideoCtx:CanvasRenderingContext2D;
 	private var windowUrl:Dynamic;
 	
-	private var vidWidth = 320;
-	private var vidHeight = 240;
+	private var sdfDisplayMaterial:ShaderMaterial;
+	private var sdf:WebGLRenderTarget;
 	
 	private static var lastAnimationTime:Float = 0.0; // Last time from requestAnimationFrame
 	private static var dt:Float = 0.0; // Frame delta time
@@ -135,10 +138,10 @@ class Main {
 		camera.position.z = 150;
 		scene.add(camera);
 		
-		// Setup webcam and video
+		// Setup webcam video feed
 		videoElement = Browser.document.createVideoElement();
-		videoElement.width = vidWidth;
-		videoElement.height = vidHeight;
+		videoElement.width = 320;
+		videoElement.height = 240;
 		videoElement.autoplay = true;
 		videoElement.loop = true;
 		
@@ -151,20 +154,35 @@ class Main {
 		Sure.sure(nav.getUserMedia != null);
 		nav.getUserMedia({ video: true }, webcamLoadSuccess, webcamLoadError);
 		
-		videoTexture = new Texture(videoElement);
-		videoTexture.minFilter = TextureFilter.LinearFilter;
-		videoTexture.magFilter = TextureFilter.LinearFilter;
+		// Make the POT canvas element and context that the video will be drawn to
+		potVideoCanvas = Browser.document.createCanvasElement();
+		potVideoCanvas.width = 512;
+		potVideoCanvas.height = 512;
+		potVideoCtx = potVideoCanvas.getContext("2d");
 		
-		var material = new ShaderMaterial( { vertexShader: Dazzle.vertexShader, fragmentShader: Dazzle.fragmentShader, uniforms: Dazzle.uniforms, opacity: 1, side: Side.DoubleSide } );
-		Dazzle.uniforms.tDiffuse.value = videoTexture;
-		Dazzle.uniforms.resolution.value.set(vidWidth, vidHeight);
-		Dazzle.uniforms.checkSize.value = 20.0;
+		// Make the SDF maker
+		sdfMaker = new SDFMaker(renderer);
+		
+		sdf = sdfMaker.transformTexture(new Texture(potVideoCanvas), false);
+		
+		sdfDisplayMaterial = new ShaderMaterial({
+			vertexShader: EDT_DISPLAY_DEMO.vertexShader,
+			fragmentShader: EDT_DISPLAY_DEMO.fragmentShader,
+			uniforms: UniformsUtils.clone(EDT_DISPLAY_DEMO.uniforms)
+		});
+		sdfDisplayMaterial.transparent = true;
+		sdfDisplayMaterial.derivatives = true;
+		sdfDisplayMaterial.uniforms.tDiffuse.value = sdf;
+		sdfDisplayMaterial.uniforms.texw.value = potVideoCanvas.width;
+		sdfDisplayMaterial.uniforms.texh.value = potVideoCanvas.height;
+		sdfDisplayMaterial.uniforms.texLevels.value = sdfMaker.texLevels;
+		sdfDisplayMaterial.uniforms.threshold.value = 0.0;
+		sdfDisplayMaterial.uniforms.alpha.value = 1.0;
+		sdfDisplayMaterial.uniforms.color.value.set(Math.random() * 0.04, Math.random() * 0.2, 0.5 + Math.random() * 0.5);
 		
 		var geometry = new PlaneGeometry(100, 100, 1, 1);
-		var screen = new Mesh(geometry, material);
+		var screen = new Mesh(geometry, sdfDisplayMaterial);
 		scene.add(screen);
-		
-		//scene.add(new Mesh(new PlaneGeometry(100, 100, 1, 1), new MeshBasicMaterial( { color: 0xFFAAAA } )));
 		
 		camera.lookAt(screen.position);
 		
@@ -221,7 +239,6 @@ class Main {
 		#end
 		
 		// Present game and start animation loop
-		loaded = true;
 		gameDiv.appendChild(renderer.domElement);
 		Browser.window.requestAnimationFrame(animate);
 	}
@@ -258,7 +275,11 @@ class Main {
 		lastAnimationTime = time;
 		
 		if (videoElement.readyState == 4) { // 4 = HAVE_ENOUGH_DATA
-			videoTexture.needsUpdate = true;
+			potVideoCtx.drawImage(videoElement, 0, 0, 320, 240);
+			var texture = new Texture(potVideoCanvas);
+			texture.needsUpdate = true;
+			sdf = sdfMaker.transformTexture(texture, false);
+			sdfDisplayMaterial.uniforms.tDiffuse.value = sdf;
 		}
 		
 		composer.render(dt);
@@ -275,7 +296,8 @@ class Main {
 		ThreeObjectGUI.addItem(sceneGUI, camera, "World Camera");
 		ThreeObjectGUI.addItem(sceneGUI, scene, "Scene");
 		
-		ShaderGUI.generate(shaderGUI, "Dazzle", Dazzle.uniforms);
+		//ShaderGUI.generate(shaderGUI, "Checker", Checker.uniforms);
+		ShaderGUI.generate(shaderGUI, "EDT_DISPLAY", sdfDisplayMaterial.uniforms);
 	}
 	
 	private inline function setupStats(mode:Mode = Mode.MEM):Void {

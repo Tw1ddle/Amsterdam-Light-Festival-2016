@@ -3,12 +3,12 @@ package shaders;
 import three.Vector2;
 import util.FileReader;
 
-class Dazzle {	
+class Checker {	
 	public static var uniforms = {
 		tDiffuse: { type: "t", value: null },
 		resolution: { type: "v2", value: new Vector2(1024.0, 1024.0) },
 		checkSize: { type: "f", value: 20.0 }
 	};
-	public static var vertexShader = FileReader.readFile("source/shaders/dazzle.vertex");
-	public static var fragmentShader = FileReader.readFile("source/shaders/dazzle.fragment");
+	public static var vertexShader = FileReader.readFile("source/shaders/checker.vertex");
+	public static var fragmentShader = FileReader.readFile("source/shaders/checker.fragment");
 }
