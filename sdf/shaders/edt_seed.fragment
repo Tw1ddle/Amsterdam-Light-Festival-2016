@@ -9,10 +9,11 @@ varying vec2 vUv;
 
 uniform sampler2D tDiffuse;
 uniform float texLevels;
+uniform float intensityOffset;
 
 void main()
 {
-	float texel = texture2D(tDiffuse, vUv).r;
+	float texel = dot(texture2D(tDiffuse, vUv).rgb, vec3(0.2125, 0.7154, 0.0721)) + intensityOffset;
 	
 	// Represents zero
 	float myzero = 0.5 * texLevels / (texLevels - 1.0);

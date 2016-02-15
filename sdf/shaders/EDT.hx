@@ -6,7 +6,8 @@ import util.FileReader;
 class EDT_SEED {
 	public static var uniforms = {
 		tDiffuse: { type: "t", value: null },
-		texLevels: { type: "f", value: 0.0 }
+		texLevels: { type: "f", value: 0.0 },
+		intensityOffset: { type: "f", value: 0.4 }
 	};
 	public static var vertexShader = FileReader.readFile("sdf/shaders/edt_seed.vertex");
 	public static var fragmentShader = FileReader.readFile("sdf/shaders/edt_seed.fragment");

@@ -10,21 +10,29 @@ import js.html.CanvasElement;
 import js.html.CanvasRenderingContext2D;
 import js.html.VideoElement;
 import sdf.generator.SDFMaker;
+import sdf.shaders.EDT.EDT_SEED;
 import shaders.EDT_DISPLAY_DEMO;
 import shaders.FXAA;
 import stats.Stats;
 import three.Color;
 import three.Mesh;
 import three.PerspectiveCamera;
+import three.PixelFormat;
 import three.PlaneGeometry;
 import three.postprocessing.EffectComposer;
 import three.Scene;
 import three.ShaderMaterial;
 import three.Texture;
+import three.TextureDataType;
+import three.TextureFilter;
 import three.UniformsUtils;
 import three.WebGLRenderer;
 import three.WebGLRenderTarget;
+import three.Wrapping;
 import webgl.Detector;
+import shaders.FreiChen;
+import three.ImageLoader;
+import three.ImageUtils;
 
 class Main {
 	public static inline var REPO_URL:String = "https://github.com/Tw1ddle/Amsterdam_Light_Festival";
@@ -32,21 +40,31 @@ class Main {
 	public static inline var TWITTER_URL:String = "https://twitter.com/Sam_Twidale";
 	public static inline var HAXE_URL:String = "http://haxe.org/";
 	
-	private var renderer:WebGLRenderer;
-	private var composer:EffectComposer;
-	private var aaPass:ShaderPass;
-	private var sdfMaker:SDFMaker;
+	private var renderer:WebGLRenderer; // The renderer
+	private var scene:Scene; // The final scene
+	private var camera:PerspectiveCamera; // The camera for viewing the final scene
 	
-	private var scene:Scene;
-	private var camera:PerspectiveCamera;
+	private var webcamComposer:EffectComposer; // The composer for post-processing the webcam feed
+	private var edgePass:FreiChen; // Edge detection pass
+	//private var blurPass: // Blurring pass
+	private var sdfMaker:SDFMaker; // The signed distance field creator, takes the webcam feed
+	private var sdfDisplayMaterial:ShaderMaterial; // The display material for the signed distance fields
+	private var sdf:WebGLRenderTarget; //
 	
+	private var pattern0:Texture;
+	private var pattern1:Texture;
+	private var pattern2:Texture;
+	private var pattern3:Texture;
+	private var pattern4:Texture;
+	
+	private var sceneComposer:EffectComposer; // The composer for post-processing the final scene
+	private var aaPass:ShaderPass; // Anti-aliasing pass
+	
+	// WebRTC webcam elements
 	private var videoElement:VideoElement;
 	private var potVideoCanvas:CanvasElement;
 	private var potVideoCtx:CanvasRenderingContext2D;
 	private var windowUrl:Dynamic;
-	
-	private var sdfDisplayMaterial:ShaderMaterial;
-	private var sdf:WebGLRenderTarget;
 	
 	private static var lastAnimationTime:Float = 0.0; // Last time from requestAnimationFrame
 	private static var dt:Float = 0.0; // Frame delta time
@@ -160,6 +178,13 @@ class Main {
 		potVideoCanvas.height = 512;
 		potVideoCtx = potVideoCanvas.getContext("2d");
 		
+		// Some patterned textures that are masked by the distance field
+		pattern0 = ImageUtils.loadTexture("assets/pattern0.png");
+		pattern1 = ImageUtils.loadTexture("assets/pattern1.png");
+		pattern2 = ImageUtils.loadTexture("assets/pattern2.png");
+		pattern3 = ImageUtils.loadTexture("assets/pattern3.png");
+		pattern4 = ImageUtils.loadTexture("assets/pattern4.png");
+		
 		// Make the SDF maker
 		sdfMaker = new SDFMaker(renderer);
 		
@@ -176,9 +201,11 @@ class Main {
 		sdfDisplayMaterial.uniforms.texw.value = potVideoCanvas.width;
 		sdfDisplayMaterial.uniforms.texh.value = potVideoCanvas.height;
 		sdfDisplayMaterial.uniforms.texLevels.value = sdfMaker.texLevels;
-		sdfDisplayMaterial.uniforms.threshold.value = 0.0;
-		sdfDisplayMaterial.uniforms.alpha.value = 1.0;
-		sdfDisplayMaterial.uniforms.color.value.set(Math.random() * 0.04, Math.random() * 0.2, 0.5 + Math.random() * 0.5);
+		sdfDisplayMaterial.uniforms.pattern0.value = pattern0;
+		sdfDisplayMaterial.uniforms.pattern1.value = pattern1;
+		sdfDisplayMaterial.uniforms.pattern2.value = pattern2;
+		sdfDisplayMaterial.uniforms.pattern3.value = pattern3;
+		sdfDisplayMaterial.uniforms.pattern4.value = pattern4;
 		
 		var geometry = new PlaneGeometry(100, 100, 1, 1);
 		var screen = new Mesh(geometry, sdfDisplayMaterial);
@@ -187,7 +214,7 @@ class Main {
 		camera.lookAt(screen.position);
 		
 		// Setup composer passes
-		composer = new EffectComposer(renderer);
+		sceneComposer = new EffectComposer(renderer);
 		
 		var renderPass = new RenderPass(scene, camera);
 		
@@ -195,8 +222,8 @@ class Main {
 		aaPass.renderToScreen = true;
 		aaPass.uniforms.resolution.value.set(width, height);
 		
-		composer.addPass(renderPass);
-		composer.addPass(aaPass);
+		sceneComposer.addPass(renderPass);
+		sceneComposer.addPass(aaPass);
 		
 		// Initial renderer setup
 		onResize();
@@ -259,7 +286,7 @@ class Main {
 		
 		renderer.setSize(Browser.window.innerWidth, Browser.window.innerHeight);
 		
-		composer.setSize(width, height);
+		sceneComposer.setSize(width, height);
 		aaPass.uniforms.resolution.value.set(width, height);
 		
 		camera.aspect = width / height;
@@ -277,12 +304,26 @@ class Main {
 		if (videoElement.readyState == 4) { // 4 = HAVE_ENOUGH_DATA
 			potVideoCtx.drawImage(videoElement, 0, 0, 320, 240);
 			var texture = new Texture(potVideoCanvas);
+			
+			// TODO perform edge detection on the webcam texture
+			var renderTargetParams = {
+				minFilter: TextureFilter.NearestFilter,
+				magFilter: TextureFilter.NearestFilter,
+				wrapS: Wrapping.ClampToEdgeWrapping,
+				wrapT: Wrapping.ClampToEdgeWrapping,
+				format: cast PixelFormat.RGBAFormat,
+				stencilBuffer: false,
+				depthBuffer: false,
+				type: TextureDataType.UnsignedByteType
+			};
+			var target = new WebGLRenderTarget(texture.image.width, texture.image.height, renderTargetParams);
+			
 			texture.needsUpdate = true;
 			sdf = sdfMaker.transformTexture(texture, false);
 			sdfDisplayMaterial.uniforms.tDiffuse.value = sdf;
 		}
 		
-		composer.render(dt);
+		sceneComposer.render(dt);
 		
 		Browser.window.requestAnimationFrame(animate);
 		
@@ -296,8 +337,8 @@ class Main {
 		ThreeObjectGUI.addItem(sceneGUI, camera, "World Camera");
 		ThreeObjectGUI.addItem(sceneGUI, scene, "Scene");
 		
-		//ShaderGUI.generate(shaderGUI, "Checker", Checker.uniforms);
 		ShaderGUI.generate(shaderGUI, "EDT_DISPLAY", sdfDisplayMaterial.uniforms);
+		ShaderGUI.generate(shaderGUI, "EDT_SEED", EDT_SEED.uniforms);
 	}
 	
 	private inline function setupStats(mode:Mode = Mode.MEM):Void {

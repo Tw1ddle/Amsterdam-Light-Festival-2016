@@ -13,9 +13,18 @@ uniform sampler2D tDiffuse;
 uniform float texw;
 uniform float texh;
 uniform float texLevels;
-uniform float threshold;
-uniform float alpha;
-uniform vec3 color;
+
+uniform sampler2D pattern0;
+uniform sampler2D pattern1;
+uniform sampler2D pattern2;
+uniform sampler2D pattern3;
+uniform sampler2D pattern4;
+
+uniform float threshold0;
+uniform float threshold1;
+uniform float threshold2;
+uniform float threshold3;
+uniform float threshold4;
 
 // Replacement for RSLs filterstep(), with fwidth() done right.
 // threshold is constant, value is smoothly varying
@@ -60,17 +69,29 @@ void main()
 	// Interpolate along u
 	float D = mix(D0_1.x, D0_1.y, uvlerp.x);
 	
-	float g = aastep(threshold, D);
+	float g0 = aastep(threshold0, D);
+	float g1 = aastep(threshold1, D);
+	float g2 = aastep(threshold2, D);
+	float g3 = aastep(threshold3, D);
 	
-	float a = min(g, alpha);
-	
-	// Final fragment color
-	if(g > 0.02)
+	if(g0 > 0.0)
 	{
-		gl_FragColor = vec4(color, a);
+		gl_FragColor = texture2D(pattern0, vUv);
+	}
+	else if(g1 > 0.0)
+	{
+		gl_FragColor = texture2D(pattern1, vUv);
+	}
+	else if(g2 > 0.0)
+	{
+		gl_FragColor = texture2D(pattern2, vUv);
+	}
+	else if(g3 > 0.0)
+	{
+		gl_FragColor = texture2D(pattern3, vUv);
 	}
 	else
 	{
-		gl_FragColor = vec4(vec3(g), a);
+		gl_FragColor = texture2D(pattern4, vUv);
 	}
 }
