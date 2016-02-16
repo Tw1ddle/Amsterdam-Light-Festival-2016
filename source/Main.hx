@@ -12,9 +12,11 @@ import js.html.VideoElement;
 import sdf.generator.SDFMaker;
 import sdf.shaders.EDT.EDT_SEED;
 import shaders.EDT_DISPLAY_DEMO;
+import shaders.FreiChen;
 import shaders.FXAA;
 import stats.Stats;
 import three.Color;
+import three.ImageUtils;
 import three.Mesh;
 import three.PerspectiveCamera;
 import three.PixelFormat;
@@ -30,9 +32,6 @@ import three.WebGLRenderer;
 import three.WebGLRenderTarget;
 import three.Wrapping;
 import webgl.Detector;
-import shaders.FreiChen;
-import three.ImageLoader;
-import three.ImageUtils;
 
 class Main {
 	public static inline var REPO_URL:String = "https://github.com/Tw1ddle/Amsterdam_Light_Festival";
@@ -49,7 +48,8 @@ class Main {
 	//private var blurPass: // Blurring pass
 	private var sdfMaker:SDFMaker; // The signed distance field creator, takes the webcam feed
 	private var sdfDisplayMaterial:ShaderMaterial; // The display material for the signed distance fields
-	private var sdf:WebGLRenderTarget; //
+	private var sdfPing:WebGLRenderTarget;
+	private var sdfPong:WebGLRenderTarget;
 	
 	private var pattern0:Texture;
 	private var pattern1:Texture;
@@ -61,9 +61,14 @@ class Main {
 	private var aaPass:ShaderPass; // Anti-aliasing pass
 	
 	// WebRTC webcam elements
+	private var webcamWidth:Int;
+	private var webcamHeight:Int;
+	private var webcamPotWidth:Int;
+	private var webcamPotHeight:Int;
 	private var videoElement:VideoElement;
 	private var potVideoCanvas:CanvasElement;
 	private var potVideoCtx:CanvasRenderingContext2D;
+	private var potVideoTexture:Texture;
 	private var windowUrl:Dynamic;
 	
 	private static var lastAnimationTime:Float = 0.0; // Last time from requestAnimationFrame
@@ -153,13 +158,17 @@ class Main {
 		
 		scene = new Scene();
 		camera = new PerspectiveCamera(75, width / height, 1.0, 8000.0);
-		camera.position.z = 150;
+		camera.position.z = 70;
 		scene.add(camera);
 		
 		// Setup webcam video feed
+		webcamWidth = 960;
+		webcamHeight = 540;
+		webcamPotWidth = 1024;
+		webcamPotHeight = 1024;
 		videoElement = Browser.document.createVideoElement();
-		videoElement.width = 320;
-		videoElement.height = 240;
+		videoElement.width = webcamWidth;
+		videoElement.height = webcamHeight;
 		videoElement.autoplay = true;
 		videoElement.loop = true;
 		
@@ -172,11 +181,13 @@ class Main {
 		Sure.sure(nav.getUserMedia != null);
 		nav.getUserMedia({ video: true }, webcamLoadSuccess, webcamLoadError);
 		
-		// Make the POT canvas element and context that the video will be drawn to
+		// Make the POT canvas element and context that the video will be drawn to		
 		potVideoCanvas = Browser.document.createCanvasElement();
-		potVideoCanvas.width = 512;
-		potVideoCanvas.height = 512;
+		potVideoCanvas.width = webcamPotWidth;
+		potVideoCanvas.height = webcamPotHeight;
 		potVideoCtx = potVideoCanvas.getContext("2d");
+		potVideoTexture = new Texture(potVideoCanvas);
+		potVideoTexture.needsUpdate = true;
 		
 		// Some patterned textures that are masked by the distance field
 		pattern0 = ImageUtils.loadTexture("assets/pattern0.png");
@@ -187,8 +198,8 @@ class Main {
 		
 		// Make the SDF maker
 		sdfMaker = new SDFMaker(renderer);
-		
-		sdf = sdfMaker.transformTexture(new Texture(potVideoCanvas), false);
+		sdfPing = new WebGLRenderTarget(webcamPotWidth, webcamPotHeight);
+		sdfPong = new WebGLRenderTarget(webcamPotWidth, webcamPotHeight);
 		
 		sdfDisplayMaterial = new ShaderMaterial({
 			vertexShader: EDT_DISPLAY_DEMO.vertexShader,
@@ -197,9 +208,9 @@ class Main {
 		});
 		sdfDisplayMaterial.transparent = true;
 		sdfDisplayMaterial.derivatives = true;
-		sdfDisplayMaterial.uniforms.tDiffuse.value = sdf;
-		sdfDisplayMaterial.uniforms.texw.value = potVideoCanvas.width;
-		sdfDisplayMaterial.uniforms.texh.value = potVideoCanvas.height;
+		sdfDisplayMaterial.uniforms.tDiffuse.value = sdfPing; // Set proper value in animate loop
+		sdfDisplayMaterial.uniforms.texw.value = webcamPotWidth;
+		sdfDisplayMaterial.uniforms.texh.value = webcamPotHeight;
 		sdfDisplayMaterial.uniforms.texLevels.value = sdfMaker.texLevels;
 		sdfDisplayMaterial.uniforms.pattern0.value = pattern0;
 		sdfDisplayMaterial.uniforms.pattern1.value = pattern1;
@@ -302,9 +313,13 @@ class Main {
 		lastAnimationTime = time;
 		
 		if (videoElement.readyState == 4) { // 4 = HAVE_ENOUGH_DATA
-			potVideoCtx.drawImage(videoElement, 0, 0, 320, 240);
-			var texture = new Texture(potVideoCanvas);
+			potVideoCtx.drawImage(videoElement, (webcamPotWidth - webcamWidth) / 2, (webcamPotHeight - webcamHeight) / 2, webcamWidth, webcamHeight);
+			potVideoTexture.image = potVideoCanvas;
+			potVideoTexture.needsUpdate = true;
+			var sdf = sdfMaker.transformTexture(potVideoTexture, sdfPing, sdfPong, false);
+			sdfDisplayMaterial.uniforms.tDiffuse.value = sdf;
 			
+			/*
 			// TODO perform edge detection on the webcam texture
 			var renderTargetParams = {
 				minFilter: TextureFilter.NearestFilter,
@@ -316,11 +331,10 @@ class Main {
 				depthBuffer: false,
 				type: TextureDataType.UnsignedByteType
 			};
-			var target = new WebGLRenderTarget(texture.image.width, texture.image.height, renderTargetParams);
+			var target = new WebGLRenderTarget(potVideoTexture.image.width, potVideoTexture.image.height, renderTargetParams);
+			*/
 			
-			texture.needsUpdate = true;
-			sdf = sdfMaker.transformTexture(texture, false);
-			sdfDisplayMaterial.uniforms.tDiffuse.value = sdf;
+
 		}
 		
 		sceneComposer.render(dt);

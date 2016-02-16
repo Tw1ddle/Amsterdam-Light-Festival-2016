@@ -88,12 +88,16 @@ Main.prototype = {
 		var height = window.innerHeight * this.renderer.getPixelRatio();
 		this.scene = new THREE.Scene();
 		this.camera = new THREE.PerspectiveCamera(75,width / height,1.0,8000.0);
-		this.camera.position.z = 150;
+		this.camera.position.z = 70;
 		this.scene.add(this.camera);
+		this.webcamWidth = 960;
+		this.webcamHeight = 540;
+		this.webcamPotWidth = 1024;
+		this.webcamPotHeight = 1024;
 		var _this = window.document;
 		this.videoElement = _this.createElement("video");
-		this.videoElement.width = 320;
-		this.videoElement.height = 240;
+		this.videoElement.width = this.webcamWidth;
+		this.videoElement.height = this.webcamHeight;
 		this.videoElement.autoplay = true;
 		this.videoElement.loop = true;
 		var nav = navigator;
@@ -105,22 +109,25 @@ Main.prototype = {
 		nav.getUserMedia({ video : true},$bind(this,this.webcamLoadSuccess),$bind(this,this.webcamLoadError));
 		var _this1 = window.document;
 		this.potVideoCanvas = _this1.createElement("canvas");
-		this.potVideoCanvas.width = 512;
-		this.potVideoCanvas.height = 512;
+		this.potVideoCanvas.width = this.webcamPotWidth;
+		this.potVideoCanvas.height = this.webcamPotHeight;
 		this.potVideoCtx = this.potVideoCanvas.getContext("2d");
+		this.potVideoTexture = new THREE.Texture(this.potVideoCanvas);
+		this.potVideoTexture.needsUpdate = true;
 		this.pattern0 = THREE.ImageUtils.loadTexture("assets/pattern0.png");
 		this.pattern1 = THREE.ImageUtils.loadTexture("assets/pattern1.png");
 		this.pattern2 = THREE.ImageUtils.loadTexture("assets/pattern2.png");
 		this.pattern3 = THREE.ImageUtils.loadTexture("assets/pattern3.png");
 		this.pattern4 = THREE.ImageUtils.loadTexture("assets/pattern4.png");
 		this.sdfMaker = new sdf_generator_SDFMaker(this.renderer);
-		this.sdf = this.sdfMaker.transformTexture(new THREE.Texture(this.potVideoCanvas),false);
+		this.sdfPing = new THREE.WebGLRenderTarget(this.webcamPotWidth,this.webcamPotHeight);
+		this.sdfPong = new THREE.WebGLRenderTarget(this.webcamPotWidth,this.webcamPotHeight);
 		this.sdfDisplayMaterial = new THREE.ShaderMaterial({ vertexShader : shaders_EDT_$DISPLAY_$DEMO.vertexShader, fragmentShader : shaders_EDT_$DISPLAY_$DEMO.fragmentShader, uniforms : THREE.UniformsUtils.clone(shaders_EDT_$DISPLAY_$DEMO.uniforms)});
 		this.sdfDisplayMaterial.transparent = true;
 		this.sdfDisplayMaterial.derivatives = true;
-		this.sdfDisplayMaterial.uniforms.tDiffuse.value = this.sdf;
-		this.sdfDisplayMaterial.uniforms.texw.value = this.potVideoCanvas.width;
-		this.sdfDisplayMaterial.uniforms.texh.value = this.potVideoCanvas.height;
+		this.sdfDisplayMaterial.uniforms.tDiffuse.value = this.sdfPing;
+		this.sdfDisplayMaterial.uniforms.texw.value = this.webcamPotWidth;
+		this.sdfDisplayMaterial.uniforms.texh.value = this.webcamPotHeight;
 		this.sdfDisplayMaterial.uniforms.texLevels.value = this.sdfMaker.texLevels;
 		this.sdfDisplayMaterial.uniforms.pattern0.value = this.pattern0;
 		this.sdfDisplayMaterial.uniforms.pattern1.value = this.pattern1;
@@ -185,13 +192,11 @@ Main.prototype = {
 		Main.dt = (time - Main.lastAnimationTime) * 0.001;
 		Main.lastAnimationTime = time;
 		if(this.videoElement.readyState == 4) {
-			this.potVideoCtx.drawImage(this.videoElement,0,0,320,240);
-			var texture = new THREE.Texture(this.potVideoCanvas);
-			var renderTargetParams = { minFilter : THREE.NearestFilter, magFilter : THREE.NearestFilter, wrapS : THREE.ClampToEdgeWrapping, wrapT : THREE.ClampToEdgeWrapping, format : THREE.RGBAFormat, stencilBuffer : false, depthBuffer : false, type : THREE.UnsignedByteType};
-			var target = new THREE.WebGLRenderTarget(texture.image.width,texture.image.height,renderTargetParams);
-			texture.needsUpdate = true;
-			this.sdf = this.sdfMaker.transformTexture(texture,false);
-			this.sdfDisplayMaterial.uniforms.tDiffuse.value = this.sdf;
+			this.potVideoCtx.drawImage(this.videoElement,(this.webcamPotWidth - this.webcamWidth) / 2,(this.webcamPotHeight - this.webcamHeight) / 2,this.webcamWidth,this.webcamHeight);
+			this.potVideoTexture.image = this.potVideoCanvas;
+			this.potVideoTexture.needsUpdate = true;
+			var sdf = this.sdfMaker.transformTexture(this.potVideoTexture,this.sdfPing,this.sdfPong,false);
+			this.sdfDisplayMaterial.uniforms.tDiffuse.value = sdf;
 		}
 		this.sceneComposer.render(Main.dt);
 		window.requestAnimationFrame($bind(this,this.animate));
@@ -472,13 +477,11 @@ var sdf_generator_SDFMaker = function(renderer) {
 };
 sdf_generator_SDFMaker.__name__ = true;
 sdf_generator_SDFMaker.prototype = {
-	transformTexture: function(texture,blurInput) {
+	transformTexture: function(texture,ping,pong,blurInput) {
 		if(blurInput == null) blurInput = true;
 		var start = haxe_Timer.stamp();
 		var width = texture.image.width;
 		var height = texture.image.height;
-		var ping = new THREE.WebGLRenderTarget(width,height,this.renderTargetParams);
-		var pong = new THREE.WebGLRenderTarget(width,height,this.renderTargetParams);
 		if(blurInput) {
 			this.scene.overrideMaterial = this.blurMaterial;
 			this.blurMaterial.uniforms.resolution.value.set(width,height);
