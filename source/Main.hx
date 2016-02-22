@@ -12,25 +12,20 @@ import js.html.VideoElement;
 import sdf.generator.SDFMaker;
 import sdf.shaders.EDT.EDT_SEED;
 import shaders.EDT_DISPLAY_DEMO;
-import shaders.FreiChen;
 import shaders.FXAA;
 import stats.Stats;
 import three.Color;
 import three.ImageUtils;
 import three.Mesh;
 import three.PerspectiveCamera;
-import three.PixelFormat;
 import three.PlaneGeometry;
 import three.postprocessing.EffectComposer;
 import three.Scene;
 import three.ShaderMaterial;
 import three.Texture;
-import three.TextureDataType;
-import three.TextureFilter;
 import three.UniformsUtils;
 import three.WebGLRenderer;
 import three.WebGLRenderTarget;
-import three.Wrapping;
 import webgl.Detector;
 
 class Main {
@@ -44,12 +39,14 @@ class Main {
 	private var camera:PerspectiveCamera; // The camera for viewing the final scene
 	
 	private var webcamComposer:EffectComposer; // The composer for post-processing the webcam feed
-	private var edgePass:FreiChen; // Edge detection pass
+	private var edgePass:ShaderMaterial; // Edge detection pass
 	//private var blurPass: // Blurring pass
 	private var sdfMaker:SDFMaker; // The signed distance field creator, takes the webcam feed
 	private var sdfDisplayMaterial:ShaderMaterial; // The display material for the signed distance fields
-	private var sdfPing:WebGLRenderTarget;
-	private var sdfPong:WebGLRenderTarget;
+	
+	// For generating distance fields from the webcam feed
+	private var sdfVideoPing:WebGLRenderTarget;
+	private var sdfVideoPong:WebGLRenderTarget;
 	
 	private var pattern0:Texture;
 	private var pattern1:Texture;
@@ -59,6 +56,8 @@ class Main {
 	
 	private var sceneComposer:EffectComposer; // The composer for post-processing the final scene
 	private var aaPass:ShaderPass; // Anti-aliasing pass
+	
+	private var feedLuminance(default, set):Float; // Approx average luminance of the last frame of the webcam feed (0-1)
 	
 	// WebRTC webcam elements
 	private var webcamWidth:Int;
@@ -189,6 +188,8 @@ class Main {
 		potVideoTexture = new Texture(potVideoCanvas);
 		potVideoTexture.needsUpdate = true;
 		
+		feedLuminance = 1.0; // Start with feed luminance maxed out
+		
 		// Some patterned textures that are masked by the distance field
 		pattern0 = ImageUtils.loadTexture("assets/pattern0.png");
 		pattern1 = ImageUtils.loadTexture("assets/pattern1.png");
@@ -198,8 +199,8 @@ class Main {
 		
 		// Make the SDF maker
 		sdfMaker = new SDFMaker(renderer);
-		sdfPing = new WebGLRenderTarget(webcamPotWidth, webcamPotHeight);
-		sdfPong = new WebGLRenderTarget(webcamPotWidth, webcamPotHeight);
+		sdfVideoPing = new WebGLRenderTarget(webcamPotWidth, webcamPotHeight);
+		sdfVideoPong = new WebGLRenderTarget(webcamPotWidth, webcamPotHeight);
 		
 		sdfDisplayMaterial = new ShaderMaterial({
 			vertexShader: EDT_DISPLAY_DEMO.vertexShader,
@@ -208,7 +209,7 @@ class Main {
 		});
 		sdfDisplayMaterial.transparent = true;
 		sdfDisplayMaterial.derivatives = true;
-		sdfDisplayMaterial.uniforms.tDiffuse.value = sdfPing; // Set proper value in animate loop
+		sdfDisplayMaterial.uniforms.tDiffuse.value = sdfVideoPing; // Set proper value in animate loop
 		sdfDisplayMaterial.uniforms.texw.value = webcamPotWidth;
 		sdfDisplayMaterial.uniforms.texh.value = webcamPotHeight;
 		sdfDisplayMaterial.uniforms.texLevels.value = sdfMaker.texLevels;
@@ -316,25 +317,12 @@ class Main {
 			potVideoCtx.drawImage(videoElement, (webcamPotWidth - webcamWidth) / 2, (webcamPotHeight - webcamHeight) / 2, webcamWidth, webcamHeight);
 			potVideoTexture.image = potVideoCanvas;
 			potVideoTexture.needsUpdate = true;
-			var sdf = sdfMaker.transformTexture(potVideoTexture, sdfPing, sdfPong, false);
+			var sdf = sdfMaker.transformTexture(potVideoTexture, sdfVideoPing, sdfVideoPong, true);
 			sdfDisplayMaterial.uniforms.tDiffuse.value = sdf;
+			feedLuminance = calculateAverageFrameLuminance(potVideoCanvas, potVideoCtx, (webcamPotWidth - webcamWidth) / 2, (webcamPotHeight - webcamHeight) / 2);
 			
-			/*
-			// TODO perform edge detection on the webcam texture
-			var renderTargetParams = {
-				minFilter: TextureFilter.NearestFilter,
-				magFilter: TextureFilter.NearestFilter,
-				wrapS: Wrapping.ClampToEdgeWrapping,
-				wrapT: Wrapping.ClampToEdgeWrapping,
-				format: cast PixelFormat.RGBAFormat,
-				stencilBuffer: false,
-				depthBuffer: false,
-				type: TextureDataType.UnsignedByteType
-			};
-			var target = new WebGLRenderTarget(potVideoTexture.image.width, potVideoTexture.image.height, renderTargetParams);
-			*/
 			
-
+			trace(feedLuminance);
 		}
 		
 		sceneComposer.render(dt);
@@ -344,6 +332,28 @@ class Main {
 		#if debug
 		stats.end();
 		#end
+	}
+	
+	private inline function calculateAverageFrameLuminance(canvas:CanvasElement, context:CanvasRenderingContext2D, originX:Float, originY:Float, step:Int = 100 * 3):Float {
+		if (canvas.width <= 0 || canvas.height <= 0) {
+			return 0.0;
+		}
+		
+		var data = context.getImageData(originX, originY, webcamWidth, webcamHeight);
+		var total:Float = 0;
+		var count:Float = 0;
+		var i:Int = 0;
+		while (i < data.data.length) {
+			total += (data.data[i] * 0.2126 + data.data[i + 1] * 0.7152 + data.data[i + 2] * 0.0722);
+			count++;
+			i += step;
+		}
+		
+		return total / (count * 255.0);
+	}
+	
+	private function set_feedLuminance(luminance:Float):Float {
+		return this.feedLuminance = luminance;
 	}
 	
 	#if debug

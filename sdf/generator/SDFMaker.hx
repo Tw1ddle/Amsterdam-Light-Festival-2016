@@ -86,13 +86,20 @@ class SDFMaker {
 	}
 	
 	// Performs EDT on the texture, returning a render target with the result
-	public function transformTexture(texture:Texture, ping:WebGLRenderTarget, pong:WebGLRenderTarget, blurInput:Bool = true):WebGLRenderTarget {
+	public function transformTexture(texture:Texture, ?ping:WebGLRenderTarget, ?pong:WebGLRenderTarget, blurInput:Bool = true):WebGLRenderTarget {
 		#if debug
 		var start = haxe.Timer.stamp();
 		#end
 		
 		var width = texture.image.width;
 		var height = texture.image.height;
+		
+		if (ping == null) {
+			ping = new WebGLRenderTarget(width, height);
+		}
+		if (pong == null) {
+			pong = new WebGLRenderTarget(width, height);
+		}
 		
 		if (blurInput) {
 			// Perform small Gaussian blur on the input, reducing the wavey or blockiness or poorly AA'd input images at the cost of the accuracy of the original shape
