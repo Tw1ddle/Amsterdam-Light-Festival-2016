@@ -26,6 +26,12 @@ uniform float threshold2;
 uniform float threshold3;
 uniform float threshold4;
 
+uniform float stepThreshold0;
+uniform float stepThreshold1;
+uniform float stepThreshold2;
+uniform float stepThreshold3;
+uniform float stepThreshold4;
+
 // Replacement for RSLs filterstep(), with fwidth() done right.
 // threshold is constant, value is smoothly varying
 float aastep(float threshold, float value)
@@ -84,22 +90,22 @@ void main()
 	
 	if(g0 > 0.0)
 	{
-		gl_FragColor = vec4(vec3(sampleField(uv, pattern0)), 1.0);
+		gl_FragColor = vec4(vec3(aastep(stepThreshold0, sampleField(uv, pattern0))), 1.0);
 	}
 	else if(g1 > 0.0)
 	{
-		gl_FragColor = vec4(vec3(sampleField(uv, pattern1)), 1.0);
+		gl_FragColor = vec4(vec3(aastep(stepThreshold1, sampleField(uv, pattern1))), 1.0);
 	}
 	else if(g2 > 0.0)
 	{
-		gl_FragColor = vec4(vec3(sampleField(uv, pattern2)), 1.0);
+		gl_FragColor = vec4(vec3(aastep(stepThreshold2, sampleField(uv, pattern2))), 1.0);
 	}
 	else if(g3 > 0.0)
 	{
-		gl_FragColor = vec4(vec3(sampleField(uv, pattern3)), 1.0);
+		gl_FragColor = vec4(vec3(aastep(stepThreshold3, sampleField(uv, pattern3))), 1.0);
 	}
 	else
 	{
-		gl_FragColor = vec4(vec3(sampleField(uv, pattern4)), 1.0);
+		gl_FragColor = vec4(vec3(aastep(stepThreshold4, sampleField(uv, pattern4))), 1.0);
 	}
 }

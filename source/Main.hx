@@ -319,10 +319,9 @@ class Main {
 			potVideoTexture.needsUpdate = true;
 			var sdf = sdfMaker.transformTexture(potVideoTexture, sdfVideoPing, sdfVideoPong, true);
 			sdfDisplayMaterial.uniforms.tDiffuse.value = sdf;
+			
+			// TODO use a weighted average over the last 10 or so frames?
 			feedLuminance = calculateAverageFrameLuminance(potVideoCanvas, potVideoCtx, (webcamPotWidth - webcamWidth) / 2, (webcamPotHeight - webcamHeight) / 2);
-			
-			
-			trace(feedLuminance);
 		}
 		
 		sceneComposer.render(dt);
@@ -334,6 +333,7 @@ class Main {
 		#end
 	}
 	
+	// Slow approximate method for calculating frame luminance
 	private inline function calculateAverageFrameLuminance(canvas:CanvasElement, context:CanvasRenderingContext2D, originX:Float, originY:Float, step:Int = 100 * 3):Float {
 		if (canvas.width <= 0 || canvas.height <= 0) {
 			return 0.0;
