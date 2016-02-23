@@ -21,6 +21,8 @@ HxOverrides.indexOf = function(a,obj,i) {
 	return -1;
 };
 var Main = function() {
+	this.shaderGUI = new dat.GUI({ autoPlace : true});
+	this.sceneGUI = new dat.GUI({ autoPlace : true});
 	window.onload = $bind(this,this.onWindowLoaded);
 };
 Main.__name__ = true;
@@ -162,14 +164,20 @@ Main.prototype = {
 		};
 		window.document.addEventListener("mousewheel",onMouseWheel,false);
 		window.document.addEventListener("DOMMouseScroll",onMouseWheel,false);
+		this.setupStats(null);
+		dat_ThreeObjectGUI.addItem(this.sceneGUI,this.camera,"World Camera");
+		dat_ThreeObjectGUI.addItem(this.sceneGUI,this.scene,"Scene");
+		dat_ShaderGUI.generate(this.shaderGUI,"EDT_DISPLAY",this.sdfDisplayMaterial.uniforms);
+		dat_ShaderGUI.generate(this.shaderGUI,"EDT_SEED",sdf_shaders_EDT_$SEED.uniforms);
 		gameDiv.appendChild(this.renderer.domElement);
 		window.requestAnimationFrame($bind(this,this.animate));
 	}
 	,webcamLoadSuccess: function(stream) {
+		console.log("Succeeded getting webcam");
 		this.videoElement.src = this.windowUrl.createObjectURL(stream);
 	}
 	,webcamLoadError: function(error) {
-		null;
+		console.log("Failed to get webcam");
 	}
 	,onResize: function() {
 		var width = window.innerWidth * this.renderer.getPixelRatio();
@@ -181,6 +189,7 @@ Main.prototype = {
 		this.camera.updateProjectionMatrix();
 	}
 	,animate: function(time) {
+		this.stats.begin();
 		Main.dt = (time - Main.lastAnimationTime) * 0.001;
 		Main.lastAnimationTime = time;
 		if(this.videoElement.readyState == 4) {
@@ -193,6 +202,7 @@ Main.prototype = {
 		}
 		this.sceneComposer.render(Main.dt);
 		window.requestAnimationFrame($bind(this,this.animate));
+		this.stats.end();
 	}
 	,calculateAverageFrameLuminance: function(canvas,context,originX,originY,step) {
 		if(step == null) step = 300;
@@ -210,6 +220,23 @@ Main.prototype = {
 	}
 	,set_feedLuminance: function(luminance) {
 		return this.feedLuminance = luminance;
+	}
+	,setupGUI: function() {
+		dat_ThreeObjectGUI.addItem(this.sceneGUI,this.camera,"World Camera");
+		dat_ThreeObjectGUI.addItem(this.sceneGUI,this.scene,"Scene");
+		dat_ShaderGUI.generate(this.shaderGUI,"EDT_DISPLAY",this.sdfDisplayMaterial.uniforms);
+		dat_ShaderGUI.generate(this.shaderGUI,"EDT_SEED",sdf_shaders_EDT_$SEED.uniforms);
+	}
+	,setupStats: function(mode) {
+		if(mode == null) mode = 2;
+		var actual = this.stats;
+		var expected = null;
+		if(actual != expected) throw new js__$Boot_HaxeError("FAIL: values are not equal (expected: " + Std.string(expected) + ", actual: " + Std.string(actual) + ")");
+		this.stats = new Stats();
+		this.stats.domElement.style.position = "absolute";
+		this.stats.domElement.style.left = "0px";
+		this.stats.domElement.style.top = "0px";
+		window.document.body.appendChild(this.stats.domElement);
 	}
 	,__class__: Main
 	,__properties__: {set_feedLuminance:"set_feedLuminance"}
@@ -305,6 +332,11 @@ dat_ThreeObjectGUI.addItem = function(gui,object,tag) {
 		folder.add(light,"intensity",0,3,0.01).listen();
 	}
 	return folder;
+};
+var haxe_Timer = function() { };
+haxe_Timer.__name__ = true;
+haxe_Timer.stamp = function() {
+	return new Date().getTime() / 1000;
 };
 var js__$Boot_HaxeError = function(val) {
 	Error.call(this);
@@ -467,6 +499,7 @@ sdf_generator_SDFMaker.__name__ = true;
 sdf_generator_SDFMaker.prototype = {
 	transformTexture: function(texture,ping,pong,blurInput) {
 		if(blurInput == null) blurInput = true;
+		var start = haxe_Timer.stamp();
 		var width = texture.image.width;
 		var height = texture.image.height;
 		if(ping == null) ping = new THREE.WebGLRenderTarget(width,height);
@@ -518,6 +551,8 @@ sdf_generator_SDFMaker.prototype = {
 		this.scene.overrideMaterial = null;
 		if(last != ping) ping.dispose();
 		if(last != pong) pong.dispose();
+		var duration = haxe_Timer.stamp() - start;
+		console.log("Transform duration: " + duration);
 		return last;
 	}
 	,__class__: sdf_generator_SDFMaker
@@ -554,6 +589,8 @@ if(Array.prototype.indexOf) HxOverrides.indexOf = function(a,o,i) {
 String.prototype.__class__ = String;
 String.__name__ = true;
 Array.__name__ = true;
+Date.prototype.__class__ = Date;
+Date.__name__ = ["Date"];
 var Int = { __name__ : ["Int"]};
 var Dynamic = { __name__ : ["Dynamic"]};
 var Float = Number;
@@ -605,3 +642,5 @@ shaders_FXAA.vertexShader = "varying vec2 vUv;\r\n\r\nvoid main()\r\n{\r\n\tvUv 
 shaders_FXAA.fragmentShader = "// Fast approximate anti-aliasing shader\r\n// Based on the three.js implementation: https://github.com/mrdoob/three.js/blob/master/examples/js/shaders/FXAAShader.js\r\n// Ported to three.js by alteredq: http://alteredqualia.com/ and davidedc: http://www.sketchpatch.net/\r\n// Ported to WebGL by @supereggbert: http://www.geeks3d.com/20110405/fxaa-fast-approximate-anti-aliasing-demo-glsl-opengl-test-radeon-geforce/\r\n// Originally implemented as NVIDIA FXAA by Timothy Lottes: http://timothylottes.blogspot.com/2011/06/fxaa3-source-released.html\r\n// Paper: http://developer.download.nvidia.com/assets/gamedev/files/sdk/11/FXAA_WhitePaper.pdf\r\n\r\n#define FXAA_REDUCE_MIN (1.0/128.0)\r\n#define FXAA_REDUCE_MUL (1.0/8.0)\r\n#define FXAA_SPAN_MAX 8.0\r\n\r\nvarying vec2 vUv;\r\n\r\nuniform sampler2D tDiffuse;\r\nuniform vec2 resolution;\r\n\r\nvoid main()\r\n{\r\n\tvec2 rres = vec2(1.0) / resolution;\r\n\t\r\n\t// Texture lookups to find RGB values in area of current fragment\r\n\tvec3 rgbNW = texture2D(tDiffuse, (gl_FragCoord.xy + vec2(-1.0, -1.0)) * rres).xyz;\r\n\tvec3 rgbNE = texture2D(tDiffuse, (gl_FragCoord.xy + vec2(1.0, -1.0)) * rres).xyz;\r\n\tvec3 rgbSW = texture2D(tDiffuse, (gl_FragCoord.xy + vec2(-1.0, 1.0)) * rres).xyz;\r\n\tvec3 rgbSE = texture2D(tDiffuse, (gl_FragCoord.xy + vec2(1.0, 1.0)) * rres).xyz;\r\n\tvec4 rgbaM = texture2D(tDiffuse, gl_FragCoord.xy  * rres);\r\n\tvec3 rgbM = rgbaM.xyz;\r\n\tfloat opacity = rgbaM.w;\r\n\t\r\n\t// Luminance estimates for colors around current fragment\r\n\tvec3 luma = vec3(0.299, 0.587, 0.114);\r\n\tfloat lumaNW = dot(rgbNW, luma);\r\n\tfloat lumaNE = dot(rgbNE, luma);\r\n\tfloat lumaSW = dot(rgbSW, luma);\r\n\tfloat lumaSE = dot(rgbSE, luma);\r\n\tfloat lumaM  = dot(rgbM, luma);\r\n\tfloat lumaMin = min(lumaM, min(min(lumaNW, lumaNE), min(lumaSW, lumaSE)));\r\n\tfloat lumaMax = max(lumaM, max(max(lumaNW, lumaNE), max(lumaSW, lumaSE)));\r\n\r\n\t// \r\n\tvec2 dir;\r\n\tdir.x = -((lumaNW + lumaNE) - (lumaSW + lumaSE));\r\n\tdir.y =  ((lumaNW + lumaSW) - (lumaNE + lumaSE));\r\n\r\n\tfloat dirReduce = max((lumaNW + lumaNE + lumaSW + lumaSE) * (0.25 * FXAA_REDUCE_MUL), FXAA_REDUCE_MIN);\r\n\r\n\tfloat rcpDirMin = 1.0 / (min(abs(dir.x), abs(dir.y)) + dirReduce);\r\n\tdir = min(vec2(FXAA_SPAN_MAX, FXAA_SPAN_MAX), max(vec2(-FXAA_SPAN_MAX, -FXAA_SPAN_MAX), dir * rcpDirMin)) * rres;\r\n\r\n\tvec3 rgbA = 0.5 * (texture2D(tDiffuse, gl_FragCoord.xy * rres + dir * (1.0 / 3.0 - 0.5 )).xyz + texture2D(tDiffuse, gl_FragCoord.xy * rres + dir * (2.0 / 3.0 - 0.5)).xyz);\r\n\tvec3 rgbB = rgbA * 0.5 + 0.25 * (texture2D(tDiffuse, gl_FragCoord.xy * rres + dir * -0.5).xyz + texture2D(tDiffuse, gl_FragCoord.xy * rres + dir * 0.5).xyz);\r\n\r\n\tfloat lumaB = dot(rgbB, luma);\r\n\t\r\n\tif ((lumaB < lumaMin) || (lumaB > lumaMax))\r\n\t{\r\n\t\tgl_FragColor = vec4(rgbA, opacity);\r\n\t}\r\n\telse\r\n\t{\r\n\t\tgl_FragColor = vec4(rgbB, opacity);\r\n\t}\r\n}";
 Main.main();
 })(typeof console != "undefined" ? console : {log:function(){}}, typeof window != "undefined" ? window : typeof global != "undefined" ? global : typeof self != "undefined" ? self : this);
+
+//# sourceMappingURL=game.js.map
