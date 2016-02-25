@@ -27,6 +27,8 @@ import three.UniformsUtils;
 import three.WebGLRenderer;
 import three.WebGLRenderTarget;
 import webgl.Detector;
+import shaders.MedianFilter;
+import three.MeshBasicMaterial;
 
 class Main {
 	public static inline var REPO_URL:String = "https://github.com/Tw1ddle/Amsterdam_Light_Festival";
@@ -36,10 +38,8 @@ class Main {
 	
 	private var renderer:WebGLRenderer; // The renderer
 	private var scene:Scene; // The final scene
-	private var camera:PerspectiveCamera; // The camera for viewing the final scene
+	private var camera:PerspectiveCamera; // Camera for viewing the final scene
 	
-	private var webcamComposer:EffectComposer; // The composer for post-processing the webcam feed
-	private var edgePass:ShaderMaterial; // Edge detection pass
 	//private var blurPass: // Blurring pass
 	private var sdfMaker:SDFMaker; // The signed distance field creator, takes the webcam feed
 	private var sdfDisplayMaterial:ShaderMaterial; // The display material for the signed distance fields
@@ -47,15 +47,18 @@ class Main {
 	// For generating distance fields from the webcam feed
 	private var sdfVideoPing:WebGLRenderTarget;
 	private var sdfVideoPong:WebGLRenderTarget;
-	
+
+	// Distance field textures
 	private var pattern0:Texture;
 	private var pattern1:Texture;
 	private var pattern2:Texture;
 	private var pattern3:Texture;
 	private var pattern4:Texture;
 	
+	private var webcamComposer:EffectComposer; // The composer for post-processing the webcam feed
 	private var sceneComposer:EffectComposer; // The composer for post-processing the final scene
 	private var aaPass:ShaderPass; // Anti-aliasing pass
+	private var medianPass:ShaderPass; // Median filter pass
 	
 	private var feedLuminance(default, set):Float; // Approx average luminance of the last frame of the webcam feed (0-1)
 	
@@ -226,13 +229,22 @@ class Main {
 		camera.lookAt(screen.position);
 		
 		// Setup composer passes
+		webcamComposer = new EffectComposer(renderer);
+		
+		medianPass = new ShaderPass( { vertexShader: MedianFilter.vertexShader, fragmentShader: MedianFilter.fragmentShader, uniforms: MedianFilter.uniforms } );
+		medianPass.renderToScreen = false;
+		medianPass.uniforms.resolution.value.set(width, height);
+		
+		//webcamComposer.addPass(renderPass1); // TODO TexturePass?
+		webcamComposer.addPass(medianPass);
+		
 		sceneComposer = new EffectComposer(renderer);
 		
 		var renderPass = new RenderPass(scene, camera);
 		
 		aaPass = new ShaderPass( { vertexShader: FXAA.vertexShader, fragmentShader: FXAA.fragmentShader, uniforms: FXAA.uniforms } );
-		aaPass.renderToScreen = true;
 		aaPass.uniforms.resolution.value.set(width, height);
+		aaPass.renderToScreen = true;
 		
 		sceneComposer.addPass(renderPass);
 		sceneComposer.addPass(aaPass);
@@ -300,6 +312,7 @@ class Main {
 		
 		sceneComposer.setSize(width, height);
 		aaPass.uniforms.resolution.value.set(width, height);
+		medianPass.uniforms.resolution.value.set(width, height);
 		
 		camera.aspect = width / height;
 		camera.updateProjectionMatrix();
