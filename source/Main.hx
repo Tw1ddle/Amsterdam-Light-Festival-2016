@@ -13,6 +13,7 @@ import sdf.generator.SDFMaker;
 import sdf.shaders.EDT.EDT_SEED;
 import shaders.EDT_DISPLAY_DEMO;
 import shaders.FXAA;
+import shaders.MedianFilter;
 import stats.Stats;
 import three.Color;
 import three.ImageUtils;
@@ -27,12 +28,12 @@ import three.UniformsUtils;
 import three.WebGLRenderer;
 import three.WebGLRenderTarget;
 import webgl.Detector;
-import shaders.MedianFilter;
-import three.MeshBasicMaterial;
 
 class Main {
-	public static inline var REPO_URL:String = "https://github.com/Tw1ddle/Amsterdam_Light_Festival";
-	public static inline var WEBSITE_URL:String = "http://samcodes.co.uk/";
+	public static inline var PROJECT_NAME:String = "Biomimetics";
+	public static inline var REPO_URL:String = "https://github.com/Tw1ddle/Amsterdam-Light-Show-2016";
+	public static inline var SAM_WEBSITE_URL:String = "http://samcodes.co.uk/";
+	public static inline var HARISH_WEBSITE_URL:String = "http://harishpersad.tumblr.com/";
 	public static inline var TWITTER_URL:String = "https://twitter.com/Sam_Twidale";
 	public static inline var HAXE_URL:String = "http://haxe.org/";
 	
@@ -152,7 +153,7 @@ class Main {
 		info.style.width = '100%';
 		info.style.textAlign = 'center';
 		info.style.color = 'white';
-		info.innerHTML = '<a href="https://github.com/Tw1ddle/Amsterdam-Light-Show-2016" target="_blank">Biomimetics</a> by <a href="http://www.samcodes.co.uk/" target="_blank">Sam Twidale</a> & <a href="http://harishpersad.tumblr.com/" target="_blank">Harish Persad</a>.';
+		info.innerHTML = '<a href="' + REPO_URL + 'target="_blank">' + PROJECT_NAME + '</a> by <a href="' + SAM_WEBSITE_URL + '" target="_blank">Sam Twidale</a> & <a href="' + HARISH_WEBSITE_URL + '" target="_blank">Harish Persad</a>.';
 		container.appendChild(info);
 		
 		var width = Browser.window.innerWidth * renderer.getPixelRatio();
@@ -376,6 +377,11 @@ class Main {
 		
 		ShaderGUI.generate(shaderGUI, "EDT_DISPLAY", sdfDisplayMaterial.uniforms);
 		ShaderGUI.generate(shaderGUI, "EDT_SEED", EDT_SEED.uniforms);
+		ShaderGUI.generate(shaderGUI, "FXAA", FXAA.uniforms);
+		ShaderGUI.generate(shaderGUI, "MEDIAN_FILTER", MedianFilter.uniforms);
+		
+		// TODO add GitHub icon
+		shaderGUI.add( { f: function() { js.Browser.window.open(REPO_URL, "_blank"); } }, 'f').name("View Source");
 	}
 	
 	private inline function setupStats(mode:Mode = Mode.MEM):Void {
