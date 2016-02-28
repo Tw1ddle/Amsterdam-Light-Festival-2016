@@ -1,4 +1,4 @@
-![Project logo](screenshots/amsterdam_light_festival_logo?raw=true "Amsterdam Light Festival Logo")
+![Project logo](screenshots/amsterdam_light_festival_logo.png?raw=true "Amsterdam Light Festival Logo")
 
 Work in progress. Amsterdam Light Festival concept by [Harish Persad](http://harishpersad.tumblr.com/) and [Sam Twidale](http://samcodes.co.uk/code/). The theme is biomimetics.
 
