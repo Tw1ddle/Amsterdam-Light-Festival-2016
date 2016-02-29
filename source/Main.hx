@@ -28,6 +28,7 @@ import three.UniformsUtils;
 import three.WebGLRenderer;
 import three.WebGLRenderTarget;
 import webgl.Detector;
+import three.Wrapping;
 
 class Main {
 	public static inline var PROJECT_NAME:String = "Biomimetics";
@@ -184,7 +185,7 @@ class Main {
 		Sure.sure(nav.getUserMedia != null);
 		nav.getUserMedia({ video: true }, webcamLoadSuccess, webcamLoadError);
 		
-		// Make the POT canvas element and context that the video will be drawn to		
+		// Make the POT canvas element and context that the video will be drawn to
 		potVideoCanvas = Browser.document.createCanvasElement();
 		potVideoCanvas.width = webcamPotWidth;
 		potVideoCanvas.height = webcamPotHeight;
@@ -194,12 +195,20 @@ class Main {
 		
 		feedLuminance = 1.0; // Start with feed luminance maxed out
 		
+		var makeTexture = function(path:String):Texture {
+			var t = ImageUtils.loadTexture(path);
+			t.wrapS = Wrapping.RepeatWrapping;
+			t.wrapT = Wrapping.RepeatWrapping;
+			t.repeat.set(2, 2);
+			return t;
+		};
+		
 		// Some patterned textures that are masked by the distance field
-		pattern0 = ImageUtils.loadTexture("assets/pattern0.png");
-		pattern1 = ImageUtils.loadTexture("assets/pattern1.png");
-		pattern2 = ImageUtils.loadTexture("assets/pattern2.png");
-		pattern3 = ImageUtils.loadTexture("assets/pattern3.png");
-		pattern4 = ImageUtils.loadTexture("assets/pattern4.png");
+		pattern0 = makeTexture("assets/pattern0.png");
+		pattern1 = makeTexture("assets/pattern1.png");
+		pattern2 = makeTexture("assets/pattern2.png");
+		pattern3 = makeTexture("assets/pattern3.png");
+		pattern4 = makeTexture("assets/pattern4.png");
 		
 		// Make the SDF maker
 		sdfMaker = new SDFMaker(renderer);

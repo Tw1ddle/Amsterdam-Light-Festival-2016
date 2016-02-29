@@ -1,7 +1,7 @@
 // Distance map contour texturing.
 // A reimplementation of Greens method, with a 16-bit 8:8 distance map and explicit bilinear interpolation.
 
-// Adapted for three.js demo by Sam Twidale.
+// Adapted for Amsterdam Light Show concept work by Sam Twidale.
 // Original implementation by Stefan Gustavson 2011.
 // This code is in the public domain.
 
@@ -25,6 +25,12 @@ uniform float threshold1;
 uniform float threshold2;
 uniform float threshold3;
 uniform float threshold4;
+
+uniform float angle0;
+uniform float angle1;
+uniform float angle2;
+uniform float angle3;
+uniform float angle4;
 
 uniform float stepThreshold0;
 uniform float stepThreshold1;
@@ -76,6 +82,14 @@ float sampleField(vec2 uv, sampler2D tDiffuse)
 	return D;
 }
 
+vec2 rotUV(vec2 uv, float angle)
+{
+	float cosFactor = cos(angle);
+	float sinFactor = sin(angle);
+	uv = (uv - texw/2.0) * mat2(cosFactor, sinFactor, -sinFactor, cosFactor);
+	return uv + texw/2.0;
+}
+
 void main()
 {
 	// Scale texcoords to range ([0, texw], [0, texh])
@@ -90,22 +104,22 @@ void main()
 	
 	if(g0 > 0.0)
 	{
-		gl_FragColor = vec4(vec3(aastep(stepThreshold0, sampleField(uv, pattern0))), 1.0);
+		gl_FragColor = vec4(vec3(aastep(stepThreshold0, sampleField(rotUV(uv, angle0), pattern0))), 1.0);
 	}
 	else if(g1 > 0.0)
 	{
-		gl_FragColor = vec4(vec3(aastep(stepThreshold1, sampleField(uv, pattern1))), 1.0);
+		gl_FragColor = vec4(vec3(aastep(stepThreshold1, sampleField(rotUV(uv, angle1), pattern1))), 1.0);
 	}
 	else if(g2 > 0.0)
 	{
-		gl_FragColor = vec4(vec3(aastep(stepThreshold2, sampleField(uv, pattern2))), 1.0);
+		gl_FragColor = vec4(vec3(aastep(stepThreshold2, sampleField(rotUV(uv, angle2), pattern2))), 1.0);
 	}
 	else if(g3 > 0.0)
 	{
-		gl_FragColor = vec4(vec3(aastep(stepThreshold3, sampleField(uv, pattern3))), 1.0);
+		gl_FragColor = vec4(vec3(aastep(stepThreshold3, sampleField(rotUV(uv, angle3), pattern3))), 1.0);
 	}
 	else
 	{
-		gl_FragColor = vec4(vec3(aastep(stepThreshold4, sampleField(uv, pattern4))), 1.0);
+		gl_FragColor = vec4(vec3(aastep(stepThreshold4, sampleField(rotUV(uv, angle4), pattern4))), 1.0);
 	}
 }
