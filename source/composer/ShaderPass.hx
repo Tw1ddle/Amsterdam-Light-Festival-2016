@@ -1,13 +1,13 @@
 package composer;
 
 import three.OrthographicCamera;
-import three.Renderer;
+import three.WebGLRenderer;
 import three.Scene;
 import three.ShaderMaterial;
 
 @:native("THREE.ShaderPass") extern class ShaderPass {
 	public function new(shader:Dynamic, ?textureID:Dynamic):Void;
-	public function render(renderer:Renderer, writeBuffer:Dynamic, readBuffer:Dynamic):Void;
+	public function render(renderer:WebGLRenderer, writeBuffer:Dynamic, readBuffer:Dynamic, dt:Float):Void;
 	
 	public var textureID:Int;
 	public var uniforms:Dynamic;

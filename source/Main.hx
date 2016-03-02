@@ -5,6 +5,7 @@ import composer.ShaderPass;
 import dat.GUI;
 import dat.ShaderGUI;
 import dat.ThreeObjectGUI;
+import haxe.ds.Vector;
 import js.Browser;
 import js.html.CanvasElement;
 import js.html.CanvasRenderingContext2D;
@@ -29,6 +30,44 @@ import three.WebGLRenderer;
 import three.WebGLRenderTarget;
 import webgl.Detector;
 import three.Wrapping;
+import sdf.shaders.GaussianBlur;
+
+class Histogram {
+	public inline function new(size:Int) {
+		this.size = size;
+		bins = new Array<{ count:Int, cumulative:Float }>();
+		for (i in 0...size) {
+			bins.push( { count: 0, cumulative: 0.0 } );
+		}
+	}
+	
+	public function add(intensity:Float):Void {
+		var bin = binForIntensity(intensity);
+		bins[bin].count += 1;
+		bins[bin].cumulative += intensity;
+		total++;
+	}
+	
+	public function reset():Void {
+		bins = new Array<{ count:Int, cumulative:Float }>();
+		for (i in 0...size) {
+			bins.push( { count: 0, cumulative: 0.0 } );
+		}
+		total = 0;
+	}
+	
+	public inline function intensityForBin(bin:Int):Float {
+		return Math.min(Math.max(0.0, 1.0 / bin), 1.0);
+	}
+	
+	public inline function binForIntensity(intensity:Float):Int {
+		return Std.int(Math.min(1.0, intensity) * (size - 1));
+	}
+	
+	public var bins:Array<{ count:Int, cumulative:Float }>;
+	public var total:Int;
+	public var size:Int;
+}
 
 class Main {
 	public static inline var PROJECT_NAME:String = "Biomimetics";
@@ -42,7 +81,6 @@ class Main {
 	private var scene:Scene; // The final scene
 	private var camera:PerspectiveCamera; // Camera for viewing the final scene
 	
-	//private var blurPass: // Blurring pass
 	private var sdfMaker:SDFMaker; // The signed distance field creator, takes the webcam feed
 	private var sdfDisplayMaterial:ShaderMaterial; // The display material for the signed distance fields
 	
@@ -57,10 +95,15 @@ class Main {
 	private var pattern3:Texture;
 	private var pattern4:Texture;
 	
-	private var webcamComposer:EffectComposer; // The composer for post-processing the webcam feed
+	private var lumHistogram:Histogram;
+	
 	private var sceneComposer:EffectComposer; // The composer for post-processing the final scene
 	private var aaPass:ShaderPass; // Anti-aliasing pass
+	
 	private var medianPass:ShaderPass; // Median filter pass
+	
+	private var medianWebcamTarget:WebGLRenderTarget; // The render target for the median filter
+	private var blurIterations:Int; // The number of iterations of the Gaussian blur pass applied to the webcam feed
 	
 	private var feedLuminance(default, set):Float; // Approx average luminance of the last frame of the webcam feed (0-1)
 	
@@ -190,7 +233,7 @@ class Main {
 		potVideoCanvas.width = webcamPotWidth;
 		potVideoCanvas.height = webcamPotHeight;
 		potVideoCtx = potVideoCanvas.getContext("2d");
-		potVideoTexture = new Texture(potVideoCanvas);
+		potVideoTexture = new Texture(potVideoCanvas); // TODO use mipmaps to estimate luminance?
 		potVideoTexture.needsUpdate = true;
 		
 		feedLuminance = 1.0; // Start with feed luminance maxed out
@@ -209,6 +252,9 @@ class Main {
 		pattern2 = makeTexture("assets/pattern2.png");
 		pattern3 = makeTexture("assets/pattern3.png");
 		pattern4 = makeTexture("assets/pattern4.png");
+		
+		// Initialize the luminance histogram
+		lumHistogram = new Histogram(255);
 		
 		// Make the SDF maker
 		sdfMaker = new SDFMaker(renderer);
@@ -238,15 +284,13 @@ class Main {
 		
 		camera.lookAt(screen.position);
 		
-		// Setup composer passes
-		webcamComposer = new EffectComposer(renderer);
-		
+		// Setup passes		
+		medianWebcamTarget = new WebGLRenderTarget(webcamPotWidth, webcamPotHeight);
 		medianPass = new ShaderPass( { vertexShader: MedianFilter.vertexShader, fragmentShader: MedianFilter.fragmentShader, uniforms: MedianFilter.uniforms } );
 		medianPass.renderToScreen = false;
 		medianPass.uniforms.resolution.value.set(width, height);
 		
-		//webcamComposer.addPass(renderPass1); // TODO TexturePass?
-		webcamComposer.addPass(medianPass);
+		blurIterations = 2;
 		
 		sceneComposer = new EffectComposer(renderer);
 		
@@ -340,14 +384,18 @@ class Main {
 			potVideoCtx.drawImage(videoElement, (webcamPotWidth - webcamWidth) / 2, (webcamPotHeight - webcamHeight) / 2, webcamWidth, webcamHeight);
 			potVideoTexture.image = potVideoCanvas;
 			potVideoTexture.needsUpdate = true;
-			var sdf = sdfMaker.transformTexture(potVideoTexture, sdfVideoPing, sdfVideoPong, true);
+			
+			medianPass.uniforms.tDiffuse.value = potVideoTexture;
+			medianPass.render(renderer, medianWebcamTarget, potVideoTexture, dt);
+			
+			var sdf = sdfMaker.transformTexture(potVideoTexture, sdfVideoPing, sdfVideoPong, blurIterations);
 			sdfDisplayMaterial.uniforms.tDiffuse.value = sdf;
 			
 			// TODO use a weighted average over the last 10 or so frames?
 			feedLuminance = calculateAverageFrameLuminance(potVideoCanvas, potVideoCtx, (webcamPotWidth - webcamWidth) / 2, (webcamPotHeight - webcamHeight) / 2);
+			
+			sceneComposer.render(dt);
 		}
-		
-		sceneComposer.render(dt);
 		
 		Browser.window.requestAnimationFrame(animate);
 		
@@ -367,10 +415,21 @@ class Main {
 		var count:Float = 0;
 		var i:Int = 0;
 		while (i < data.data.length) {
-			total += (data.data[i] * 0.2126 + data.data[i + 1] * 0.7152 + data.data[i + 2] * 0.0722);
+			var intensity = (data.data[i] * 0.2126 + data.data[i + 1] * 0.7152 + data.data[i + 2] * 0.0722);
+			total += intensity;
 			count++;
 			i += step;
+			
+			lumHistogram.add(intensity / 255.0);
 		}
+		
+		//for (bin in lumHistogram.bins) {
+		//	trace("Bin count " + bin.count);
+		//	trace("Bin total " + bin.cumulative);
+		//	trace("Bin average " + bin.cumulative / bin.count);
+		//}
+		
+		lumHistogram.reset();
 		
 		return total / (count * 255.0);
 	}
@@ -388,6 +447,8 @@ class Main {
 		ShaderGUI.generate(shaderGUI, "EDT_SEED", EDT_SEED.uniforms);
 		ShaderGUI.generate(shaderGUI, "FXAA", FXAA.uniforms);
 		ShaderGUI.generate(shaderGUI, "MEDIAN_FILTER", MedianFilter.uniforms);
+		var f = ShaderGUI.generate(shaderGUI, "GAUSSIAN_BLUR", GaussianBlur.uniforms);
+		f.add(this, 'blurIterations').listen().min(0).max(60);
 		
 		// TODO add GitHub icon
 		shaderGUI.add( { f: function() { js.Browser.window.open(REPO_URL, "_blank"); } }, 'f').name("View Source");

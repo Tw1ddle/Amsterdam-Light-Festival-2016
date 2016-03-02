@@ -85,14 +85,95 @@ class SDFMaker {
 		};
 	}
 	
+	inline public function transformRenderTarget(target:WebGLRenderTarget, ?ping:WebGLRenderTarget, ?pong:WebGLRenderTarget, blurIterations:Int = 1):WebGLRenderTarget {
+		return transform(target, target.width, target.height, ping, pong, blurIterations);
+	}
+	
 	// Performs EDT on the texture, returning a render target with the result
-	public function transformTexture(texture:Texture, ?ping:WebGLRenderTarget, ?pong:WebGLRenderTarget, blurInput:Bool = true):WebGLRenderTarget {
+	inline public function transformTexture(target:Texture, ?ping:WebGLRenderTarget, ?pong:WebGLRenderTarget, blurIterations:Int = 1):WebGLRenderTarget {
+		return transform(target, target.image.width, target.image.height, ping, pong, blurIterations);
+	}
+	
+	private function blur(texture:Dynamic, width:Float, height:Float, ping:WebGLRenderTarget, pong:WebGLRenderTarget, blurIterations:Int):WebGLRenderTarget {
+		// Perform small Gaussian blur on the input, reducing the wavey or blockiness or poorly AA'd input images at the cost of the accuracy of the original shape
+		scene.overrideMaterial = blurMaterial;
+		blurMaterial.uniforms.resolution.value.set(width, height);
+		
+		texture.minFilter = TextureFilter.LinearFilter;
+		texture.magFilter = TextureFilter.LinearFilter;
+		texture.wrapS = Wrapping.RepeatWrapping;
+		texture.wrapT = Wrapping.RepeatWrapping;
+		
+		ping.minFilter = TextureFilter.LinearFilter;
+		ping.magFilter = TextureFilter.LinearFilter;
+		ping.wrapS = Wrapping.RepeatWrapping;
+		ping.wrapT = Wrapping.RepeatWrapping;
+		
+		pong.minFilter = TextureFilter.LinearFilter;
+		pong.magFilter = TextureFilter.LinearFilter;
+		pong.wrapS = Wrapping.RepeatWrapping;
+		pong.wrapT = Wrapping.RepeatWrapping;
+		
+		var iterations = blurIterations;
+		var tmp:Dynamic = null;
+		
+		blurMaterial.uniforms.flip.value = 1;
+		for (i in 0...iterations) {
+			var radius = iterations - i - 1;
+			
+			if (i == 0) {
+				tmp = ping;
+				blurMaterial.uniforms.tDiffuse.value = texture;
+				blurMaterial.uniforms.direction.value.set(radius, 0); // Horizontal blur
+			} else if (i % 2 != 0) {
+				tmp = pong;
+				blurMaterial.uniforms.tDiffuse.value = ping;
+				blurMaterial.uniforms.direction.value.set(0, radius); // Vertical blur
+			} else {
+				tmp = ping;
+				blurMaterial.uniforms.tDiffuse.value = pong;
+				blurMaterial.uniforms.direction.value.set(radius, 0); // Horizontal blur
+			}
+			renderer.render(scene, camera, tmp, true);
+		}
+		
+		// Render final texture to next target
+		var source = ping;
+		var target = pong;
+		blurMaterial.uniforms.flip.value = 1;
+		blurMaterial.uniforms.direction.value.set(0, 0); // Copy
+		blurMaterial.uniforms.tDiffuse.value = source;
+		renderer.render(scene, camera, target, true);
+		
+		texture.wrapS = Wrapping.ClampToEdgeWrapping;
+		texture.wrapT = Wrapping.ClampToEdgeWrapping;
+		texture.minFilter = TextureFilter.NearestFilter;
+		texture.magFilter = TextureFilter.NearestFilter;
+		
+		ping.wrapS = Wrapping.ClampToEdgeWrapping;
+		ping.wrapT = Wrapping.ClampToEdgeWrapping;
+		ping.minFilter = TextureFilter.NearestFilter;
+		ping.magFilter = TextureFilter.NearestFilter;
+		
+		pong.wrapS = Wrapping.ClampToEdgeWrapping;
+		pong.wrapT = Wrapping.ClampToEdgeWrapping;
+		pong.minFilter = TextureFilter.NearestFilter;
+		pong.magFilter = TextureFilter.NearestFilter;
+		
+		/*
+		// Test to display the blurred input texture
+		scene.overrideMaterial = copyMaterial;
+		copyMaterial.uniforms.tDiffuse.value = pong;
+		renderer.render(scene, camera);
+		*/
+		
+		return target;
+	}
+	
+	private function transform(texture:Dynamic, width:Float, height:Float, ?ping:WebGLRenderTarget, ?pong:WebGLRenderTarget, blurIterations:Int):WebGLRenderTarget {
 		#if debug
 		var start = haxe.Timer.stamp();
 		#end
-		
-		var width = texture.image.width;
-		var height = texture.image.height;
 		
 		if (ping == null) {
 			ping = new WebGLRenderTarget(width, height);
@@ -101,56 +182,21 @@ class SDFMaker {
 			pong = new WebGLRenderTarget(width, height);
 		}
 		
-		if (blurInput) {
-			// Perform small Gaussian blur on the input, reducing the wavey or blockiness or poorly AA'd input images at the cost of the accuracy of the original shape
-			scene.overrideMaterial = blurMaterial;
-			blurMaterial.uniforms.resolution.value.set(width, height);
-			
-			// Horizontal blur on original texture
-			blurMaterial.uniforms.tDiffuse.value = texture;
-			blurMaterial.uniforms.direction.value.set(1, 0);
-			
-			texture.minFilter = TextureFilter.LinearFilter;
-			texture.magFilter = TextureFilter.LinearFilter;
-			texture.wrapS = Wrapping.RepeatWrapping;
-			texture.wrapT = Wrapping.RepeatWrapping;
-			renderer.render(scene, camera, ping, true);
-			texture.wrapS = Wrapping.ClampToEdgeWrapping;
-			texture.wrapT = Wrapping.ClampToEdgeWrapping;
-			texture.minFilter = TextureFilter.NearestFilter;
-			texture.magFilter = TextureFilter.NearestFilter;
-			
-			// Vertical blur on first render buffer
-			blurMaterial.uniforms.tDiffuse.value = ping;
-			blurMaterial.uniforms.direction.value.set(0, 1);
-			
-			ping.minFilter = TextureFilter.LinearFilter;
-			ping.magFilter = TextureFilter.LinearFilter;
-			ping.wrapS = Wrapping.RepeatWrapping;
-			ping.wrapT = Wrapping.RepeatWrapping;
-			renderer.render(scene, camera, pong, true);
-			ping.wrapS = Wrapping.ClampToEdgeWrapping;
-			ping.wrapT = Wrapping.ClampToEdgeWrapping;
-			ping.minFilter = TextureFilter.NearestFilter;
-			ping.magFilter = TextureFilter.NearestFilter;
-			
-			/*
-			// Test to display the blurred input texture
-			scene.overrideMaterial = copyMaterial;
-			copyMaterial.uniforms.tDiffuse.value = pong;
-			renderer.render(scene, camera);
-			*/
+		// Draw seed image to first render target
+		var source:Dynamic = null;
+		var target:Dynamic = null;
+		if (blurIterations > 0) {
+			source = blur(texture, width, height, ping, pong, blurIterations);
+			source == ping ? target = pong : target = ping;
+		} else {
+			source = texture;
+			target = ping;
 		}
 		
-		// Draw seed image to first render target
 		scene.overrideMaterial = seedMaterial;
-		if (blurInput) {
-			seedMaterial.uniforms.tDiffuse.value = pong;
-		} else {
-			seedMaterial.uniforms.tDiffuse.value = texture;
-		}
+		seedMaterial.uniforms.tDiffuse.value = source;
 		seedMaterial.uniforms.texLevels.value = texLevels;
-		renderer.render(scene, camera, ping, true);
+		renderer.render(scene, camera, target, true);
 		
 		// Iteratively calculate the euclidean distance transform, ping-ponging results into the render targets
 		scene.overrideMaterial = floodMaterial;
@@ -158,7 +204,7 @@ class SDFMaker {
 		floodMaterial.uniforms.texw.value = width;
 		floodMaterial.uniforms.texh.value = height;
 		var stepSize:Int = width > height ? Std.int(width / 2) : Std.int(height / 2);
-		var last = ping;
+		var last = target;
 		while (stepSize > 0) {				
 			floodMaterial.uniforms.tDiffuse.value = last;
 			floodMaterial.uniforms.step.value = stepSize;

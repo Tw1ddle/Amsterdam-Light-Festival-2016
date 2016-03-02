@@ -3,7 +3,7 @@ package dat;
 import dat.GUI;
 
 class ShaderGUI {
-	public static function generate(gui:GUI, folderName:String, uniforms:Dynamic, ?exclude:Array<String>):Void {
+	public static function generate(gui:GUI, folderName:String, uniforms:Dynamic, ?exclude:Array<String>):GUI {
 		var keys = Reflect.fields(uniforms);
 		
 		var folder = gui.addFolder(folderName);
@@ -31,5 +31,7 @@ class ShaderGUI {
 					f.add(v.value, 'y').listen().name(key + "_y");
 			}
 		}
+		
+		return folder;
 	}
 }

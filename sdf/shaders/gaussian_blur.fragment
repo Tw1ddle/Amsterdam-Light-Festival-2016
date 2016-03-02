@@ -19,10 +19,13 @@ void main()
 		uv.y = 1.0 - uv.y;
 	}
 	
-	vec2 offset = vec2(1.3333333333333333) * direction;
+	vec2 off1 = vec2(1.3846153846) * direction;
+	vec2 off2 = vec2(3.2307692308) * direction;
 	vec4 color = vec4(0.0);
-	color += texture2D(tDiffuse, uv) * 0.29411764705882354;
-	color += texture2D(tDiffuse, uv + (offset / resolution)) * 0.35294117647058826;
-	color += texture2D(tDiffuse, uv - (offset / resolution)) * 0.35294117647058826;
+	color += texture2D(tDiffuse, uv) * 0.2270270270;
+	color += texture2D(tDiffuse, uv + (off1 / resolution)) * 0.3162162162;
+	color += texture2D(tDiffuse, uv - (off1 / resolution)) * 0.3162162162;
+	color += texture2D(tDiffuse, uv + (off2 / resolution)) * 0.0702702703;
+	color += texture2D(tDiffuse, uv - (off2 / resolution)) * 0.0702702703;
 	gl_FragColor = color;
 }
