@@ -5,13 +5,14 @@ import composer.ShaderPass;
 import dat.GUI;
 import dat.ShaderGUI;
 import dat.ThreeObjectGUI;
-import haxe.ds.Vector;
 import js.Browser;
 import js.html.CanvasElement;
 import js.html.CanvasRenderingContext2D;
 import js.html.VideoElement;
 import sdf.generator.SDFMaker;
+import sdf.shaders.Copy;
 import sdf.shaders.EDT.EDT_SEED;
+import sdf.shaders.GaussianBlur;
 import shaders.EDT_DISPLAY_DEMO;
 import shaders.FXAA;
 import shaders.MedianFilter;
@@ -28,9 +29,8 @@ import three.Texture;
 import three.UniformsUtils;
 import three.WebGLRenderer;
 import three.WebGLRenderTarget;
-import webgl.Detector;
 import three.Wrapping;
-import sdf.shaders.GaussianBlur;
+import webgl.Detector;
 
 class Histogram {
 	public inline function new(size:Int) {
@@ -69,6 +69,12 @@ class Histogram {
 	public var size:Int;
 }
 
+@:enum abstract DisplayMode(String) from String to String {
+	var WEBCAM_FEED = "Webcam Feed";
+	var PROCESSED_WEBCAM_FEED = "Processed Webcam Feed";
+	var FULL_EFFECT = "Full Effect";
+}
+
 class Main {
 	public static inline var PROJECT_NAME:String = "Biomimetics";
 	public static inline var REPO_URL:String = "https://github.com/Tw1ddle/Amsterdam-Light-Show-2016";
@@ -78,15 +84,19 @@ class Main {
 	public static inline var HAXE_URL:String = "http://haxe.org/";
 	
 	private var renderer:WebGLRenderer; // The renderer
+	private var displayMode:DisplayMode; // The mode for displaying the feed
 	private var scene:Scene; // The final scene
 	private var camera:PerspectiveCamera; // Camera for viewing the final scene
+	private var screen:Mesh; // The screen on which the final scene is rendered
+	
+	private var copyMaterial:ShaderMaterial; // Display material for the regular webcam feed
 	
 	private var sdfMaker:SDFMaker; // The signed distance field creator, takes the webcam feed
 	private var sdfDisplayMaterial:ShaderMaterial; // The display material for the signed distance fields
 	
 	// For generating distance fields from the webcam feed
-	private var sdfVideoPing:WebGLRenderTarget;
-	private var sdfVideoPong:WebGLRenderTarget;
+	private var videoPing:WebGLRenderTarget;
+	private var videoPong:WebGLRenderTarget;
 
 	// Distance field textures
 	private var pattern0:Texture;
@@ -95,6 +105,7 @@ class Main {
 	private var pattern3:Texture;
 	private var pattern4:Texture;
 	
+	// Luminance histogram
 	private var lumHistogram:Histogram;
 	
 	private var sceneComposer:EffectComposer; // The composer for post-processing the final scene
@@ -203,8 +214,10 @@ class Main {
 		var width = Browser.window.innerWidth * renderer.getPixelRatio();
 		var height = Browser.window.innerHeight * renderer.getPixelRatio();
 		
+		displayMode = DisplayMode.FULL_EFFECT; // Default to full effect
+		
 		scene = new Scene();
-		camera = new PerspectiveCamera(75, width / height, 1.0, 8000.0);
+		camera = new PerspectiveCamera(75, width / height, 1.0, 1000.0);
 		camera.position.z = 70;
 		scene.add(camera);
 		
@@ -256,10 +269,16 @@ class Main {
 		// Initialize the luminance histogram
 		lumHistogram = new Histogram(255);
 		
+		copyMaterial = new ShaderMaterial( {
+			vertexShader: Copy.vertexShader,
+			fragmentShader: Copy.fragmentShader,
+			uniforms: Copy.uniforms
+		});
+		
 		// Make the SDF maker
 		sdfMaker = new SDFMaker(renderer);
-		sdfVideoPing = new WebGLRenderTarget(webcamPotWidth, webcamPotHeight);
-		sdfVideoPong = new WebGLRenderTarget(webcamPotWidth, webcamPotHeight);
+		videoPing = new WebGLRenderTarget(webcamPotWidth, webcamPotHeight);
+		videoPong = new WebGLRenderTarget(webcamPotWidth, webcamPotHeight);
 		
 		sdfDisplayMaterial = new ShaderMaterial({
 			vertexShader: EDT_DISPLAY_DEMO.vertexShader,
@@ -268,7 +287,7 @@ class Main {
 		});
 		sdfDisplayMaterial.transparent = true;
 		sdfDisplayMaterial.derivatives = true;
-		sdfDisplayMaterial.uniforms.tDiffuse.value = sdfVideoPing; // Set proper value in animate loop
+		sdfDisplayMaterial.uniforms.tDiffuse.value = videoPing; // Set proper value in animate loop
 		sdfDisplayMaterial.uniforms.texw.value = webcamPotWidth;
 		sdfDisplayMaterial.uniforms.texh.value = webcamPotHeight;
 		sdfDisplayMaterial.uniforms.texLevels.value = sdfMaker.texLevels;
@@ -279,7 +298,7 @@ class Main {
 		sdfDisplayMaterial.uniforms.pattern4.value = pattern4;
 		
 		var geometry = new PlaneGeometry(100, 100, 1, 1);
-		var screen = new Mesh(geometry, sdfDisplayMaterial);
+		screen = new Mesh(geometry, sdfDisplayMaterial);
 		scene.add(screen);
 		
 		camera.lookAt(screen.position);
@@ -290,7 +309,7 @@ class Main {
 		medianPass.renderToScreen = false;
 		medianPass.uniforms.resolution.value.set(width, height);
 		
-		blurIterations = 2;
+		blurIterations = 1;
 		
 		sceneComposer = new EffectComposer(renderer);
 		
@@ -385,16 +404,35 @@ class Main {
 			potVideoTexture.image = potVideoCanvas;
 			potVideoTexture.needsUpdate = true;
 			
-			medianPass.uniforms.tDiffuse.value = potVideoTexture;
-			medianPass.render(renderer, medianWebcamTarget, potVideoTexture, dt);
-			
-			var sdf = sdfMaker.transformTexture(potVideoTexture, sdfVideoPing, sdfVideoPong, blurIterations);
-			sdfDisplayMaterial.uniforms.tDiffuse.value = sdf;
-			
-			// TODO use a weighted average over the last 10 or so frames?
-			feedLuminance = calculateAverageFrameLuminance(potVideoCanvas, potVideoCtx, (webcamPotWidth - webcamWidth) / 2, (webcamPotHeight - webcamHeight) / 2);
-			
-			sceneComposer.render(dt);
+			switch(displayMode) {
+				case WEBCAM_FEED:					
+					screen.material = copyMaterial;
+					copyMaterial.uniforms.tDiffuse.value = potVideoTexture;
+					
+					sceneComposer.render(dt);
+				case PROCESSED_WEBCAM_FEED:					
+					medianPass.uniforms.tDiffuse.value = potVideoTexture;
+					medianPass.render(renderer, medianWebcamTarget, potVideoTexture, dt);
+										
+					screen.material = copyMaterial;
+					var blur = sdfMaker.blur(medianWebcamTarget, videoPing.width, videoPing.height, videoPing, videoPong, blurIterations);
+					copyMaterial.uniforms.tDiffuse.value = blur;
+					
+					sceneComposer.render(dt);
+					
+				case FULL_EFFECT:					
+					medianPass.uniforms.tDiffuse.value = potVideoTexture;
+					medianPass.render(renderer, medianWebcamTarget, potVideoTexture, dt);
+					
+					screen.material = sdfDisplayMaterial;
+					var sdf = sdfMaker.transformTexture(potVideoTexture, videoPing, videoPong, blurIterations);
+					sdfDisplayMaterial.uniforms.tDiffuse.value = sdf;
+					
+					sceneComposer.render(dt);
+					
+					// TODO use a weighted average over the last 10 or so frames?
+					feedLuminance = calculateAverageFrameLuminance(potVideoCanvas, potVideoCtx, (webcamPotWidth - webcamWidth) / 2, (webcamPotHeight - webcamHeight) / 2);
+			}
 		}
 		
 		Browser.window.requestAnimationFrame(animate);
@@ -443,12 +481,14 @@ class Main {
 		ThreeObjectGUI.addItem(sceneGUI, camera, "World Camera");
 		ThreeObjectGUI.addItem(sceneGUI, scene, "Scene");
 		
+		shaderGUI.add(this, 'displayMode', { Full_Effect: FULL_EFFECT, Processed_Webcam_Feed: PROCESSED_WEBCAM_FEED, Webcam_Feed : WEBCAM_FEED } ).listen();
+		
 		ShaderGUI.generate(shaderGUI, "EDT_DISPLAY", sdfDisplayMaterial.uniforms);
 		ShaderGUI.generate(shaderGUI, "EDT_SEED", EDT_SEED.uniforms);
 		ShaderGUI.generate(shaderGUI, "FXAA", FXAA.uniforms);
 		ShaderGUI.generate(shaderGUI, "MEDIAN_FILTER", MedianFilter.uniforms);
 		var f = ShaderGUI.generate(shaderGUI, "GAUSSIAN_BLUR", GaussianBlur.uniforms);
-		f.add(this, 'blurIterations').listen().min(0).max(60);
+		f.add(this, 'blurIterations').listen().min(1).max(60);
 		
 		// TODO add GitHub icon
 		shaderGUI.add( { f: function() { js.Browser.window.open(REPO_URL, "_blank"); } }, 'f').name("View Source");

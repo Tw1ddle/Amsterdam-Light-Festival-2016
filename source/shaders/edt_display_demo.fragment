@@ -86,8 +86,8 @@ vec2 rotUV(vec2 uv, float angle)
 {
 	float cosFactor = cos(angle);
 	float sinFactor = sin(angle);
-	uv = (uv - texw/2.0) * mat2(cosFactor, sinFactor, -sinFactor, cosFactor);
-	return uv + texw/2.0;
+	uv = (uv - texw / 2.0) * mat2(cosFactor, sinFactor, -sinFactor, cosFactor);
+	return uv + texw / 2.0;
 }
 
 void main()

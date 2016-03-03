@@ -94,7 +94,7 @@ class SDFMaker {
 		return transform(target, target.image.width, target.image.height, ping, pong, blurIterations);
 	}
 	
-	private function blur(texture:Dynamic, width:Float, height:Float, ping:WebGLRenderTarget, pong:WebGLRenderTarget, blurIterations:Int):WebGLRenderTarget {
+	public function blur(texture:Dynamic, width:Float, height:Float, ping:WebGLRenderTarget, pong:WebGLRenderTarget, blurIterations:Int):WebGLRenderTarget {
 		// Perform small Gaussian blur on the input, reducing the wavey or blockiness or poorly AA'd input images at the cost of the accuracy of the original shape
 		scene.overrideMaterial = blurMaterial;
 		blurMaterial.uniforms.resolution.value.set(width, height);
