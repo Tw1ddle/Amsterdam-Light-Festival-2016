@@ -20,6 +20,41 @@ HxOverrides.indexOf = function(a,obj,i) {
 	}
 	return -1;
 };
+var Histogram = function(size) {
+	this.size = size;
+	this.bins = [];
+	var _g = 0;
+	while(_g < size) {
+		var i = _g++;
+		this.bins.push({ count : 0, cumulative : 0.0});
+	}
+};
+Histogram.__name__ = true;
+Histogram.prototype = {
+	add: function(intensity) {
+		var bin = Std["int"](Math.min(1.0,intensity) * (this.size - 1));
+		this.bins[bin].count += 1;
+		this.bins[bin].cumulative += intensity;
+		this.total++;
+	}
+	,reset: function() {
+		this.bins = [];
+		var _g1 = 0;
+		var _g = this.size;
+		while(_g1 < _g) {
+			var i = _g1++;
+			this.bins.push({ count : 0, cumulative : 0.0});
+		}
+		this.total = 0;
+	}
+	,intensityForBin: function(bin) {
+		return Math.min(Math.max(0.0,1.0 / bin),1.0);
+	}
+	,binForIntensity: function(intensity) {
+		return Std["int"](Math.min(1.0,intensity) * (this.size - 1));
+	}
+	,__class__: Histogram
+};
 var Main = function() {
 	this.shaderGUI = new dat.GUI({ autoPlace : true});
 	this.sceneGUI = new dat.GUI({ autoPlace : true});
@@ -43,13 +78,13 @@ Main.prototype = {
 			unsupportedInfo.style.color = "#ffffff";
 			switch(glSupported) {
 			case 2:
-				unsupportedInfo.innerHTML = "Your browser does not support WebGL. Click <a href=\"" + "https://github.com/Tw1ddle/Amsterdam_Light_Festival" + "\" target=\"_blank\">here for project info</a> instead.";
+				unsupportedInfo.innerHTML = "Your browser does not support WebGL. Click <a href=\"" + "https://github.com/Tw1ddle/Amsterdam-Light-Show-2016" + "\" target=\"_blank\">here for project info</a> instead.";
 				break;
 			case 1:
-				unsupportedInfo.innerHTML = "Your browser supports WebGL, but the feature appears to be disabled. Click <a href=\"" + "https://github.com/Tw1ddle/Amsterdam_Light_Festival" + "\" target=\"_blank\">here for project info</a> instead.";
+				unsupportedInfo.innerHTML = "Your browser supports WebGL, but the feature appears to be disabled. Click <a href=\"" + "https://github.com/Tw1ddle/Amsterdam-Light-Show-2016" + "\" target=\"_blank\">here for project info</a> instead.";
 				break;
 			default:
-				unsupportedInfo.innerHTML = "Could not detect WebGL support. Click <a href=\"" + "https://github.com/Tw1ddle/Amsterdam_Light_Festival" + "\" target=\"_blank\">here for project info</a> instead.";
+				unsupportedInfo.innerHTML = "Could not detect WebGL support. Click <a href=\"" + "https://github.com/Tw1ddle/Amsterdam-Light-Show-2016" + "\" target=\"_blank\">here for project info</a> instead.";
 			}
 			gameDiv.appendChild(unsupportedInfo);
 			return;
@@ -64,7 +99,7 @@ Main.prototype = {
 			missingExtensionInfo.style.width = "100%";
 			missingExtensionInfo.style.textAlign = "center";
 			missingExtensionInfo.style.color = "#ffffff";
-			missingExtensionInfo.innerHTML = "Missing required WebGL extension: " + extDerivatives + " Click <a href=\"" + "https://github.com/Tw1ddle/Amsterdam_Light_Festival" + "\" target=\"_blank\">here for project info</a> instead.";
+			missingExtensionInfo.innerHTML = "Missing required WebGL extension: " + extDerivatives + " Click <a href=\"" + "https://github.com/Tw1ddle/Amsterdam-Light-Show-2016" + "\" target=\"_blank\">here for project info</a> instead.";
 			gameDiv.appendChild(missingExtensionInfo);
 			return;
 		}
@@ -82,12 +117,13 @@ Main.prototype = {
 		info.style.width = "100%";
 		info.style.textAlign = "center";
 		info.style.color = "white";
-		info.innerHTML = "<a href=\"https://github.com/Tw1ddle/Amsterdam-Light-Show-2016\" target=\"_blank\">Biomimetics</a> by <a href=\"http://www.samcodes.co.uk/\" target=\"_blank\">Sam Twidale</a> & <a href=\"http://harishpersad.tumblr.com/\" target=\"_blank\">Harish Persad</a>.";
+		info.innerHTML = "<a href=\"" + "https://github.com/Tw1ddle/Amsterdam-Light-Show-2016" + "target=\"_blank\">" + "Biomimetics" + "</a> by <a href=\"" + "http://samcodes.co.uk/" + "\" target=\"_blank\">Sam Twidale</a> & <a href=\"" + "http://harishpersad.tumblr.com/" + "\" target=\"_blank\">Harish Persad</a>.";
 		container.appendChild(info);
 		var width = window.innerWidth * this.renderer.getPixelRatio();
 		var height = window.innerHeight * this.renderer.getPixelRatio();
+		this.displayMode = "Full Effect";
 		this.scene = new THREE.Scene();
-		this.camera = new THREE.PerspectiveCamera(75,width / height,1.0,8000.0);
+		this.camera = new THREE.PerspectiveCamera(75,width / height,1.0,1000.0);
 		this.camera.position.z = 70;
 		this.scene.add(this.camera);
 		this.webcamWidth = 960;
@@ -115,18 +151,27 @@ Main.prototype = {
 		this.potVideoTexture = new THREE.Texture(this.potVideoCanvas);
 		this.potVideoTexture.needsUpdate = true;
 		this.set_feedLuminance(1.0);
-		this.pattern0 = THREE.ImageUtils.loadTexture("assets/pattern0.png");
-		this.pattern1 = THREE.ImageUtils.loadTexture("assets/pattern1.png");
-		this.pattern2 = THREE.ImageUtils.loadTexture("assets/pattern2.png");
-		this.pattern3 = THREE.ImageUtils.loadTexture("assets/pattern3.png");
-		this.pattern4 = THREE.ImageUtils.loadTexture("assets/pattern4.png");
+		var makeTexture = function(path) {
+			var t = THREE.ImageUtils.loadTexture(path);
+			t.wrapS = THREE.RepeatWrapping;
+			t.wrapT = THREE.RepeatWrapping;
+			t.repeat.set(2,2);
+			return t;
+		};
+		this.pattern0 = makeTexture("assets/pattern0.png");
+		this.pattern1 = makeTexture("assets/pattern1.png");
+		this.pattern2 = makeTexture("assets/pattern2.png");
+		this.pattern3 = makeTexture("assets/pattern3.png");
+		this.pattern4 = makeTexture("assets/pattern4.png");
+		this.lumHistogram = new Histogram(255);
+		this.copyMaterial = new THREE.ShaderMaterial({ vertexShader : sdf_shaders_Copy.vertexShader, fragmentShader : sdf_shaders_Copy.fragmentShader, uniforms : sdf_shaders_Copy.uniforms});
 		this.sdfMaker = new sdf_generator_SDFMaker(this.renderer);
-		this.sdfVideoPing = new THREE.WebGLRenderTarget(this.webcamPotWidth,this.webcamPotHeight);
-		this.sdfVideoPong = new THREE.WebGLRenderTarget(this.webcamPotWidth,this.webcamPotHeight);
+		this.videoPing = new THREE.WebGLRenderTarget(this.webcamPotWidth,this.webcamPotHeight);
+		this.videoPong = new THREE.WebGLRenderTarget(this.webcamPotWidth,this.webcamPotHeight);
 		this.sdfDisplayMaterial = new THREE.ShaderMaterial({ vertexShader : shaders_EDT_$DISPLAY_$DEMO.vertexShader, fragmentShader : shaders_EDT_$DISPLAY_$DEMO.fragmentShader, uniforms : THREE.UniformsUtils.clone(shaders_EDT_$DISPLAY_$DEMO.uniforms)});
 		this.sdfDisplayMaterial.transparent = true;
 		this.sdfDisplayMaterial.derivatives = true;
-		this.sdfDisplayMaterial.uniforms.tDiffuse.value = this.sdfVideoPing;
+		this.sdfDisplayMaterial.uniforms.tDiffuse.value = this.videoPing;
 		this.sdfDisplayMaterial.uniforms.texw.value = this.webcamPotWidth;
 		this.sdfDisplayMaterial.uniforms.texh.value = this.webcamPotHeight;
 		this.sdfDisplayMaterial.uniforms.texLevels.value = this.sdfMaker.texLevels;
@@ -136,14 +181,19 @@ Main.prototype = {
 		this.sdfDisplayMaterial.uniforms.pattern3.value = this.pattern3;
 		this.sdfDisplayMaterial.uniforms.pattern4.value = this.pattern4;
 		var geometry = new THREE.PlaneGeometry(100,100,1,1);
-		var screen = new THREE.Mesh(geometry,this.sdfDisplayMaterial);
-		this.scene.add(screen);
-		this.camera.lookAt(screen.position);
+		this.screen = new THREE.Mesh(geometry,this.sdfDisplayMaterial);
+		this.scene.add(this.screen);
+		this.camera.lookAt(this.screen.position);
+		this.denoiseTarget = new THREE.WebGLRenderTarget(this.webcamPotWidth,this.webcamPotHeight);
+		this.denoisePass = new THREE.ShaderPass({ vertexShader : shaders_BoxDenoise.vertexShader, fragmentShader : shaders_BoxDenoise.fragmentShader, uniforms : shaders_BoxDenoise.uniforms});
+		this.denoisePass.renderToScreen = false;
+		this.denoisePass.uniforms.resolution.value.set(width,height);
+		this.blurIterations = 1;
 		this.sceneComposer = new THREE.EffectComposer(this.renderer);
 		var renderPass = new THREE.RenderPass(this.scene,this.camera);
 		this.aaPass = new THREE.ShaderPass({ vertexShader : shaders_FXAA.vertexShader, fragmentShader : shaders_FXAA.fragmentShader, uniforms : shaders_FXAA.uniforms});
-		this.aaPass.renderToScreen = true;
 		this.aaPass.uniforms.resolution.value.set(width,height);
+		this.aaPass.renderToScreen = true;
 		this.sceneComposer.addPass(renderPass);
 		this.sceneComposer.addPass(this.aaPass);
 		this.onResize();
@@ -165,10 +215,7 @@ Main.prototype = {
 		window.document.addEventListener("mousewheel",onMouseWheel,false);
 		window.document.addEventListener("DOMMouseScroll",onMouseWheel,false);
 		this.setupStats(null);
-		dat_ThreeObjectGUI.addItem(this.sceneGUI,this.camera,"World Camera");
-		dat_ThreeObjectGUI.addItem(this.sceneGUI,this.scene,"Scene");
-		dat_ShaderGUI.generate(this.shaderGUI,"EDT_DISPLAY",this.sdfDisplayMaterial.uniforms);
-		dat_ShaderGUI.generate(this.shaderGUI,"EDT_SEED",sdf_shaders_EDT_$SEED.uniforms);
+		this.setupGUI();
 		gameDiv.appendChild(this.renderer.domElement);
 		window.requestAnimationFrame($bind(this,this.animate));
 	}
@@ -185,6 +232,7 @@ Main.prototype = {
 		this.renderer.setSize(window.innerWidth,window.innerHeight);
 		this.sceneComposer.setSize(width,height);
 		this.aaPass.uniforms.resolution.value.set(width,height);
+		this.denoisePass.uniforms.resolution.value.set(width,height);
 		this.camera.aspect = width / height;
 		this.camera.updateProjectionMatrix();
 	}
@@ -196,11 +244,32 @@ Main.prototype = {
 			this.potVideoCtx.drawImage(this.videoElement,(this.webcamPotWidth - this.webcamWidth) / 2,(this.webcamPotHeight - this.webcamHeight) / 2,this.webcamWidth,this.webcamHeight);
 			this.potVideoTexture.image = this.potVideoCanvas;
 			this.potVideoTexture.needsUpdate = true;
-			var sdf = this.sdfMaker.transformTexture(this.potVideoTexture,this.sdfVideoPing,this.sdfVideoPong,true);
-			this.sdfDisplayMaterial.uniforms.tDiffuse.value = sdf;
-			this.set_feedLuminance(this.calculateAverageFrameLuminance(this.potVideoCanvas,this.potVideoCtx,(this.webcamPotWidth - this.webcamWidth) / 2,(this.webcamPotHeight - this.webcamHeight) / 2,null));
+			var _g = this.displayMode;
+			switch(_g) {
+			case "Webcam Feed":
+				this.screen.material = this.copyMaterial;
+				this.copyMaterial.uniforms.tDiffuse.value = this.potVideoTexture;
+				this.sceneComposer.render(Main.dt);
+				break;
+			case "Processed Webcam Feed":
+				this.denoisePass.uniforms.tDiffuse.value = this.potVideoTexture;
+				this.denoisePass.render(this.renderer,this.denoiseTarget,this.potVideoTexture,Main.dt);
+				this.screen.material = this.copyMaterial;
+				var blur = this.sdfMaker.blur(this.denoiseTarget,this.videoPing.width,this.videoPing.height,this.videoPing,this.videoPong,this.blurIterations);
+				this.copyMaterial.uniforms.tDiffuse.value = blur;
+				this.sceneComposer.render(Main.dt);
+				break;
+			case "Full Effect":
+				this.denoisePass.uniforms.tDiffuse.value = this.potVideoTexture;
+				this.denoisePass.render(this.renderer,this.denoiseTarget,this.potVideoTexture,Main.dt);
+				this.screen.material = this.sdfDisplayMaterial;
+				var sdf = this.sdfMaker.transformRenderTarget(this.denoiseTarget,this.videoPing,this.videoPong,this.blurIterations);
+				this.sdfDisplayMaterial.uniforms.tDiffuse.value = sdf;
+				this.sceneComposer.render(Main.dt);
+				this.set_feedLuminance(this.calculateAverageFrameLuminance(this.potVideoCanvas,this.potVideoCtx,(this.webcamPotWidth - this.webcamWidth) / 2,(this.webcamPotHeight - this.webcamHeight) / 2,null));
+				break;
+			}
 		}
-		this.sceneComposer.render(Main.dt);
 		window.requestAnimationFrame($bind(this,this.animate));
 		this.stats.end();
 	}
@@ -212,10 +281,13 @@ Main.prototype = {
 		var count = 0;
 		var i = 0;
 		while(i < data.data.length) {
-			total += data.data[i] * 0.2126 + data.data[i + 1] * 0.7152 + data.data[i + 2] * 0.0722;
+			var intensity = data.data[i] * 0.2126 + data.data[i + 1] * 0.7152 + data.data[i + 2] * 0.0722;
+			total += intensity;
 			count++;
 			i += step;
+			this.lumHistogram.add(intensity / 255.0);
 		}
+		this.lumHistogram.reset();
 		return total / (count * 255.0);
 	}
 	,set_feedLuminance: function(luminance) {
@@ -224,8 +296,16 @@ Main.prototype = {
 	,setupGUI: function() {
 		dat_ThreeObjectGUI.addItem(this.sceneGUI,this.camera,"World Camera");
 		dat_ThreeObjectGUI.addItem(this.sceneGUI,this.scene,"Scene");
+		this.shaderGUI.add(this,"displayMode",{ Full_Effect : "Full Effect", Processed_Webcam_Feed : "Processed Webcam Feed", Webcam_Feed : "Webcam Feed"}).listen();
 		dat_ShaderGUI.generate(this.shaderGUI,"EDT_DISPLAY",this.sdfDisplayMaterial.uniforms);
 		dat_ShaderGUI.generate(this.shaderGUI,"EDT_SEED",sdf_shaders_EDT_$SEED.uniforms);
+		dat_ShaderGUI.generate(this.shaderGUI,"FXAA",this.aaPass.uniforms);
+		dat_ShaderGUI.generate(this.shaderGUI,"BOX_DENOISER",this.denoisePass.uniforms);
+		var f = dat_ShaderGUI.generate(this.shaderGUI,"GAUSSIAN_BLUR",sdf_shaders_GaussianBlur.uniforms);
+		f.add(this,"blurIterations").listen().min(1).max(60);
+		this.shaderGUI.add({ f : function() {
+			window.open("https://github.com/Tw1ddle/Amsterdam-Light-Show-2016","_blank");
+		}},"f").name("View Source");
 	}
 	,setupStats: function(mode) {
 		if(mode == null) mode = 2;
@@ -271,6 +351,9 @@ Std.__name__ = true;
 Std.string = function(s) {
 	return js_Boot.__string_rec(s,"");
 };
+Std["int"] = function(x) {
+	return x | 0;
+};
 var dat_ShaderGUI = function() { };
 dat_ShaderGUI.__name__ = true;
 dat_ShaderGUI.generate = function(gui,folderName,uniforms,exclude) {
@@ -295,6 +378,7 @@ dat_ShaderGUI.generate = function(gui,folderName,uniforms,exclude) {
 			break;
 		}
 	}
+	return folder;
 };
 var dat_ThreeObjectGUI = function() { };
 dat_ThreeObjectGUI.__name__ = true;
@@ -497,50 +581,95 @@ var sdf_generator_SDFMaker = function(renderer) {
 };
 sdf_generator_SDFMaker.__name__ = true;
 sdf_generator_SDFMaker.prototype = {
-	transformTexture: function(texture,ping,pong,blurInput) {
-		if(blurInput == null) blurInput = true;
+	transformRenderTarget: function(target,ping,pong,blurIterations) {
+		if(blurIterations == null) blurIterations = 1;
+		return this.transform(target,target.width,target.height,ping,pong,blurIterations);
+	}
+	,transformTexture: function(target,ping,pong,blurIterations) {
+		if(blurIterations == null) blurIterations = 1;
+		return this.transform(target,target.image.width,target.image.height,ping,pong,blurIterations);
+	}
+	,blur: function(texture,width,height,ping,pong,blurIterations) {
+		this.scene.overrideMaterial = this.blurMaterial;
+		this.blurMaterial.uniforms.resolution.value.set(width,height);
+		texture.minFilter = THREE.LinearFilter;
+		texture.magFilter = THREE.LinearFilter;
+		texture.wrapS = THREE.RepeatWrapping;
+		texture.wrapT = THREE.RepeatWrapping;
+		ping.minFilter = THREE.LinearFilter;
+		ping.magFilter = THREE.LinearFilter;
+		ping.wrapS = THREE.RepeatWrapping;
+		ping.wrapT = THREE.RepeatWrapping;
+		pong.minFilter = THREE.LinearFilter;
+		pong.magFilter = THREE.LinearFilter;
+		pong.wrapS = THREE.RepeatWrapping;
+		pong.wrapT = THREE.RepeatWrapping;
+		var iterations = blurIterations;
+		var tmp = null;
+		this.blurMaterial.uniforms.flip.value = 1;
+		var _g = 0;
+		while(_g < iterations) {
+			var i = _g++;
+			var radius = iterations - i - 1;
+			if(i == 0) {
+				tmp = ping;
+				this.blurMaterial.uniforms.tDiffuse.value = texture;
+				this.blurMaterial.uniforms.direction.value.set(radius,0);
+			} else if(i % 2 != 0) {
+				tmp = pong;
+				this.blurMaterial.uniforms.tDiffuse.value = ping;
+				this.blurMaterial.uniforms.direction.value.set(0,radius);
+			} else {
+				tmp = ping;
+				this.blurMaterial.uniforms.tDiffuse.value = pong;
+				this.blurMaterial.uniforms.direction.value.set(radius,0);
+			}
+			this.renderer.render(this.scene,this.camera,tmp,true);
+		}
+		var source = ping;
+		var target = pong;
+		this.blurMaterial.uniforms.flip.value = 1;
+		this.blurMaterial.uniforms.direction.value.set(0,0);
+		this.blurMaterial.uniforms.tDiffuse.value = source;
+		this.renderer.render(this.scene,this.camera,target,true);
+		texture.wrapS = THREE.ClampToEdgeWrapping;
+		texture.wrapT = THREE.ClampToEdgeWrapping;
+		texture.minFilter = THREE.NearestFilter;
+		texture.magFilter = THREE.NearestFilter;
+		ping.wrapS = THREE.ClampToEdgeWrapping;
+		ping.wrapT = THREE.ClampToEdgeWrapping;
+		ping.minFilter = THREE.NearestFilter;
+		ping.magFilter = THREE.NearestFilter;
+		pong.wrapS = THREE.ClampToEdgeWrapping;
+		pong.wrapT = THREE.ClampToEdgeWrapping;
+		pong.minFilter = THREE.NearestFilter;
+		pong.magFilter = THREE.NearestFilter;
+		return target;
+	}
+	,transform: function(texture,width,height,ping,pong,blurIterations) {
 		var start = haxe_Timer.stamp();
-		var width = texture.image.width;
-		var height = texture.image.height;
 		if(ping == null) ping = new THREE.WebGLRenderTarget(width,height);
 		if(pong == null) pong = new THREE.WebGLRenderTarget(width,height);
-		if(blurInput) {
-			this.scene.overrideMaterial = this.blurMaterial;
-			this.blurMaterial.uniforms.resolution.value.set(width,height);
-			this.blurMaterial.uniforms.tDiffuse.value = texture;
-			this.blurMaterial.uniforms.direction.value.set(1,0);
-			texture.minFilter = THREE.LinearFilter;
-			texture.magFilter = THREE.LinearFilter;
-			texture.wrapS = THREE.RepeatWrapping;
-			texture.wrapT = THREE.RepeatWrapping;
-			this.renderer.render(this.scene,this.camera,ping,true);
-			texture.wrapS = THREE.ClampToEdgeWrapping;
-			texture.wrapT = THREE.ClampToEdgeWrapping;
-			texture.minFilter = THREE.NearestFilter;
-			texture.magFilter = THREE.NearestFilter;
-			this.blurMaterial.uniforms.tDiffuse.value = ping;
-			this.blurMaterial.uniforms.direction.value.set(0,1);
-			ping.minFilter = THREE.LinearFilter;
-			ping.magFilter = THREE.LinearFilter;
-			ping.wrapS = THREE.RepeatWrapping;
-			ping.wrapT = THREE.RepeatWrapping;
-			this.renderer.render(this.scene,this.camera,pong,true);
-			ping.wrapS = THREE.ClampToEdgeWrapping;
-			ping.wrapT = THREE.ClampToEdgeWrapping;
-			ping.minFilter = THREE.NearestFilter;
-			ping.magFilter = THREE.NearestFilter;
+		var source = null;
+		var target = null;
+		if(blurIterations > 0) {
+			source = this.blur(texture,width,height,ping,pong,blurIterations);
+			if(source == ping) target = pong; else target = ping;
+		} else {
+			source = texture;
+			target = ping;
 		}
 		this.scene.overrideMaterial = this.seedMaterial;
-		if(blurInput) this.seedMaterial.uniforms.tDiffuse.value = pong; else this.seedMaterial.uniforms.tDiffuse.value = texture;
+		this.seedMaterial.uniforms.tDiffuse.value = source;
 		this.seedMaterial.uniforms.texLevels.value = this.texLevels;
-		this.renderer.render(this.scene,this.camera,ping,true);
+		this.renderer.render(this.scene,this.camera,target,true);
 		this.scene.overrideMaterial = this.floodMaterial;
 		this.floodMaterial.uniforms.texLevels.value = this.texLevels;
 		this.floodMaterial.uniforms.texw.value = width;
 		this.floodMaterial.uniforms.texh.value = height;
 		var stepSize;
 		if(width > height) stepSize = width / 2 | 0; else stepSize = height / 2 | 0;
-		var last = ping;
+		var last = target;
 		while(stepSize > 0) {
 			this.floodMaterial.uniforms.tDiffuse.value = last;
 			this.floodMaterial.uniforms.step.value = stepSize;
@@ -575,10 +704,14 @@ var sdf_shaders_EDT_$DISPLAY_$ALPHA_$THRESHOLD = function() { };
 sdf_shaders_EDT_$DISPLAY_$ALPHA_$THRESHOLD.__name__ = true;
 var sdf_shaders_GaussianBlur = function() { };
 sdf_shaders_GaussianBlur.__name__ = true;
+var shaders_BoxDenoise = function() { };
+shaders_BoxDenoise.__name__ = true;
 var shaders_EDT_$DISPLAY_$DEMO = function() { };
 shaders_EDT_$DISPLAY_$DEMO.__name__ = true;
 var shaders_FXAA = function() { };
 shaders_FXAA.__name__ = true;
+var shaders_MedianFilter = function() { };
+shaders_MedianFilter.__name__ = true;
 var util_FileReader = function() { };
 util_FileReader.__name__ = true;
 var $_, $fid = 0;
@@ -599,8 +732,10 @@ var Bool = Boolean;
 Bool.__ename__ = ["Bool"];
 var Class = { __name__ : ["Class"]};
 var Enum = { };
-Main.REPO_URL = "https://github.com/Tw1ddle/Amsterdam_Light_Festival";
-Main.WEBSITE_URL = "http://samcodes.co.uk/";
+Main.PROJECT_NAME = "Biomimetics";
+Main.REPO_URL = "https://github.com/Tw1ddle/Amsterdam-Light-Show-2016";
+Main.SAM_WEBSITE_URL = "http://samcodes.co.uk/";
+Main.HARISH_WEBSITE_URL = "http://harishpersad.tumblr.com/";
 Main.TWITTER_URL = "https://twitter.com/Sam_Twidale";
 Main.HAXE_URL = "http://haxe.org/";
 Main.lastAnimationTime = 0.0;
@@ -633,13 +768,19 @@ sdf_shaders_EDT_$DISPLAY_$ALPHA_$THRESHOLD.vertexShader = "// Adapted for three.
 sdf_shaders_EDT_$DISPLAY_$ALPHA_$THRESHOLD.fragmentShader = "// Distance map contour texturing.\r\n// Simple alpha thresholding, produces wavey contours.\r\n\r\n// Adapted for three.js demo by Sam Twidale.\r\n// Original implementation by Stefan Gustavson 2011.\r\n// This code is in the public domain.\r\n\r\nvarying vec2 vUv;\r\nvarying float oneu;\r\nvarying float onev;\r\n\r\nuniform sampler2D tDiffuse;\r\nuniform float texw;\r\nuniform float texh;\r\nuniform float texLevels;\r\nuniform float threshold;\r\n\r\n// Replacement for RSLs filterstep(), with fwidth() done right.\r\n// threshold is constant, value is smoothly varying\r\nfloat aastep(float threshold, float value)\r\n{\r\n\tfloat afwidth = 0.7 * length(vec2(dFdx(value), dFdy(value)));\r\n\treturn smoothstep(threshold - afwidth, threshold + afwidth, value); // GLSLs fwidth(value) is abs(dFdx(value)) + abs(dFdy(value))\r\n}\r\n\r\nvoid main()\r\n{\r\n\t// Scale texcoords to range ([0, texw], [0, texh])\r\n\tvec2 uv = vUv * vec2(texw, texh);\r\n\t\r\n\t// Compute texel-local (u,v) coordinates for the four closest texels\r\n\tvec2 uv00 = floor(uv - vec2(0.5)); // Lower left corner of lower left texel\r\n\tvec2 uvlerp = uv - uv00 - vec2(0.5); // Texel-local lerp blends [0,1]\r\n\t\r\n\t// Center st00 on lower left texel and rescale to [0,1] for texture lookup\r\n\tvec2 st00 = (uv00 + vec2(0.5)) * vec2(oneu, onev);\r\n\t\r\n\t// Compute distance value from four closest 8-bit RGBA texels\r\n\tvec4 D00 = texture2D(tDiffuse, st00);\r\n\tvec4 D10 = texture2D(tDiffuse, st00 + vec2(oneu, 0.0));\r\n\tvec4 D01 = texture2D(tDiffuse, st00 + vec2(0.0, onev));\r\n\tvec4 D11 = texture2D(tDiffuse, st00 + vec2(oneu, onev));\r\n\r\n\t// Retrieve the B channel to get the original grayscale image\r\n\tvec4 G = vec4(D00.b, D01.b, D10.b, D11.b);\r\n  \r\n\t// Interpolate along v\r\n\tG.xy = mix(G.xz, G.yw, uvlerp.y);\r\n\r\n\t// Interpolate along u\r\n\tfloat g = mix(G.x, G.y, uvlerp.x);\r\n\r\n\tfloat c = aastep(threshold, g);\r\n\t\r\n\t// Final fragment color\r\n\tgl_FragColor = vec4(vec3(c), 1.0);\r\n}";
 sdf_shaders_GaussianBlur.uniforms = { tDiffuse : { type : "t", value : null}, direction : { type : "v2", value : new THREE.Vector2(0,0)}, resolution : { type : "v2", value : new THREE.Vector2(1024.0,1024.0)}, flip : { type : "i", value : 0}};
 sdf_shaders_GaussianBlur.vertexShader = "varying vec2 vUv;\r\n\r\nvoid main()\r\n{\r\n\tvUv = uv;\r\n\tgl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);\r\n}";
-sdf_shaders_GaussianBlur.fragmentShader = "// Efficient Gaussian blur with linear sampling, based on https://github.com/Jam3/glsl-fast-gaussian-blur by Jam3\r\n// Also see http://rastergrid.com/blog/2010/09/efficient-gaussian-blur-with-linear-sampling/ by Daniel Rakos\r\n// Must use on a texture that has linear (gl.LINEAR) filtering, the linear sampling approach requires this to get info about two adjacent pixels from one texture read, making it faster than discrete sampling\r\n// Requires a horizontal and vertical pass to perform the full blur. It is written this way because a single pass involves many more texture reads\r\n\r\nvarying vec2 vUv;\r\n\r\nuniform sampler2D tDiffuse;\r\nuniform vec2 resolution;\r\nuniform vec2 direction;\r\nuniform int flip;\r\n\r\nvoid main()\r\n{\r\n\tvec2 uv = vUv;\r\n\t\r\n\tif(flip != 0)\r\n\t{\r\n\t\tuv.y = 1.0 - uv.y;\r\n\t}\r\n\t\r\n\tvec2 offset = vec2(1.3333333333333333) * direction;\r\n\tvec4 color = vec4(0.0);\r\n\tcolor += texture2D(tDiffuse, uv) * 0.29411764705882354;\r\n\tcolor += texture2D(tDiffuse, uv + (offset / resolution)) * 0.35294117647058826;\r\n\tcolor += texture2D(tDiffuse, uv - (offset / resolution)) * 0.35294117647058826;\r\n\tgl_FragColor = color;\r\n}";
-shaders_EDT_$DISPLAY_$DEMO.uniforms = { tDiffuse : { type : "t", value : null}, texw : { type : "f", value : 0.0}, texh : { type : "f", value : 0.0}, texLevels : { type : "f", value : 0.0}, threshold0 : { type : "f", value : 0.0, min : 0.0, max : 0.001}, threshold1 : { type : "f", value : 0.0, min : 0.0, max : 0.005}, threshold2 : { type : "f", value : 0.0, min : 0.0, max : 0.005}, threshold3 : { type : "f", value : 0.0, min : 0.0, max : 0.005}, threshold4 : { type : "f", value : 0.0, min : 0.0, max : 0.005}, stepThreshold0 : { type : "f", value : 0.0, min : 0.0, max : 0.001}, stepThreshold1 : { type : "f", value : 0.0, min : 0.0, max : 0.005}, stepThreshold2 : { type : "f", value : 0.0, min : 0.0, max : 0.005}, stepThreshold3 : { type : "f", value : 0.0, min : 0.0, max : 0.005}, stepThreshold4 : { type : "f", value : 0.0, min : 0.0, max : 0.005}, pattern0 : { type : "t", value : null}, pattern1 : { type : "t", value : null}, pattern2 : { type : "t", value : null}, pattern3 : { type : "t", value : null}, pattern4 : { type : "t", value : null}};
+sdf_shaders_GaussianBlur.fragmentShader = "// Efficient Gaussian blur with linear sampling, based on https://github.com/Jam3/glsl-fast-gaussian-blur by Jam3\r\n// Also see http://rastergrid.com/blog/2010/09/efficient-gaussian-blur-with-linear-sampling/ by Daniel Rakos\r\n// Must use on a texture that has linear (gl.LINEAR) filtering, the linear sampling approach requires this to get info about two adjacent pixels from one texture read, making it faster than discrete sampling\r\n// Requires a horizontal and vertical pass to perform the full blur. It is written this way because a single pass involves many more texture reads\r\n\r\nvarying vec2 vUv;\r\n\r\nuniform sampler2D tDiffuse;\r\nuniform vec2 resolution;\r\nuniform vec2 direction;\r\nuniform int flip;\r\n\r\nvoid main()\r\n{\r\n\tvec2 uv = vUv;\r\n\t\r\n\tif(flip != 0)\r\n\t{\r\n\t\tuv.y = 1.0 - uv.y;\r\n\t}\r\n\t\r\n\tvec2 off1 = vec2(1.3846153846) * direction;\r\n\tvec2 off2 = vec2(3.2307692308) * direction;\r\n\tvec4 color = vec4(0.0);\r\n\tcolor += texture2D(tDiffuse, uv) * 0.2270270270;\r\n\tcolor += texture2D(tDiffuse, uv + (off1 / resolution)) * 0.3162162162;\r\n\tcolor += texture2D(tDiffuse, uv - (off1 / resolution)) * 0.3162162162;\r\n\tcolor += texture2D(tDiffuse, uv + (off2 / resolution)) * 0.0702702703;\r\n\tcolor += texture2D(tDiffuse, uv - (off2 / resolution)) * 0.0702702703;\r\n\tgl_FragColor = color;\r\n}";
+shaders_BoxDenoise.uniforms = { tDiffuse : { type : "t", value : null}, resolution : { type : "v2", value : new THREE.Vector2(1024.0,1024.0)}, exponent : { type : "f", value : 15.0, min : 0.0, max : 500.0}};
+shaders_BoxDenoise.vertexShader = "varying vec2 vUv;\r\n\r\nvoid main()\r\n{\r\n\tvUv = uv;\r\n\tgl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);\r\n}";
+shaders_BoxDenoise.fragmentShader = "// Denoise shader.\r\n// Smooths over grainy noise in dark images using an 9x9 box filter, weighted by color intensity, similar to a bilateral filter.\r\n\r\n// Adapted for Amsterdam Light Festival concept work by Sam Twidale.\r\n// Based on the implementation from glfx.js by Evan Wallace: https://github.com/evanw/glfx.js\r\n// This code is MIT licensed.\r\n\r\nvarying vec2 vUv;\r\n\r\nuniform sampler2D tDiffuse;\r\nuniform vec2 resolution;\r\nuniform float exponent;\r\n\r\nvoid main() \r\n{\r\n\tvec4 center = texture2D(tDiffuse, vUv);\r\n\tvec4 color = vec4(0.0);\r\n\tfloat total = 0.0;\r\n\t\r\n\t// 32x32\r\n\tfor (float x = -16.0; x <= 16.0; x += 1.0)\r\n\t{\r\n\t\tfor (float y = -16.0; y <= 16.0; y += 1.0)\r\n\t\t{\r\n\t\t\tvec4 sample = texture2D(tDiffuse, vUv + vec2(x, y) / resolution);\r\n\t\t\tfloat weight = 1.0 - abs(dot(sample.rgb - center.rgb, vec3(0.0625)));\r\n\t\t\tweight = pow(weight, exponent);\r\n\t\t\tcolor += sample * weight;\r\n\t\t\ttotal += weight;\r\n\t\t}\r\n\t}\r\n\t\r\n\tgl_FragColor = color / total;\r\n}";
+shaders_EDT_$DISPLAY_$DEMO.uniforms = { tDiffuse : { type : "t", value : null}, texw : { type : "f", value : 0.0}, texh : { type : "f", value : 0.0}, texLevels : { type : "f", value : 0.0}, threshold0 : { type : "f", value : 0.0, min : 0.0, max : 0.001}, threshold1 : { type : "f", value : 0.0, min : 0.0, max : 0.005}, threshold2 : { type : "f", value : 0.0, min : 0.0, max : 0.005}, threshold3 : { type : "f", value : 0.0, min : 0.0, max : 0.005}, threshold4 : { type : "f", value : 0.0, min : 0.0, max : 0.005}, angle0 : { type : "f", value : 0.0, min : -6.0, max : 6.0}, angle1 : { type : "f", value : 0.0, min : -6.0, max : 6.0}, angle2 : { type : "f", value : 0.0, min : -6.0, max : 6.0}, angle3 : { type : "f", value : 0.0, min : -6.0, max : 6.0}, angle4 : { type : "f", value : 0.0, min : -6.0, max : 6.0}, stepThreshold0 : { type : "f", value : 0.0, min : -0.001, max : 0.001}, stepThreshold1 : { type : "f", value : 0.0, min : -0.005, max : 0.005}, stepThreshold2 : { type : "f", value : 0.0, min : -0.005, max : 0.005}, stepThreshold3 : { type : "f", value : 0.0, min : -0.005, max : 0.005}, stepThreshold4 : { type : "f", value : 0.0, min : -0.005, max : 0.005}, pattern0 : { type : "t", value : null}, pattern1 : { type : "t", value : null}, pattern2 : { type : "t", value : null}, pattern3 : { type : "t", value : null}, pattern4 : { type : "t", value : null}};
 shaders_EDT_$DISPLAY_$DEMO.vertexShader = "// Adapted for three.js demo by Sam Twidale.\r\n// Original implementation by Stefan Gustavson 2010.\r\n// This code is in the public domain.\r\n\r\nvarying vec2 vUv;\r\nvarying float oneu;\r\nvarying float onev;\r\n\r\nuniform float texw;\r\nuniform float texh;\r\n\r\nvoid main()\r\n{\r\n\tvUv = uv;\r\n\t\r\n\t// Save divisions in some of the fragment shaders\r\n\toneu = 1.0 / texw;\r\n\tonev = 1.0 / texh;\r\n\t\r\n\tgl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);\r\n}";
-shaders_EDT_$DISPLAY_$DEMO.fragmentShader = "// Distance map contour texturing.\r\n// A reimplementation of Greens method, with a 16-bit 8:8 distance map and explicit bilinear interpolation.\r\n\r\n// Adapted for three.js demo by Sam Twidale.\r\n// Original implementation by Stefan Gustavson 2011.\r\n// This code is in the public domain.\r\n\r\nvarying vec2 vUv;\r\nvarying float oneu;\r\nvarying float onev;\r\n\r\nuniform sampler2D tDiffuse;\r\nuniform float texw;\r\nuniform float texh;\r\nuniform float texLevels;\r\n\r\nuniform sampler2D pattern0;\r\nuniform sampler2D pattern1;\r\nuniform sampler2D pattern2;\r\nuniform sampler2D pattern3;\r\nuniform sampler2D pattern4;\r\n\r\nuniform float threshold0;\r\nuniform float threshold1;\r\nuniform float threshold2;\r\nuniform float threshold3;\r\nuniform float threshold4;\r\n\r\nuniform float stepThreshold0;\r\nuniform float stepThreshold1;\r\nuniform float stepThreshold2;\r\nuniform float stepThreshold3;\r\nuniform float stepThreshold4;\r\n\r\n// Replacement for RSLs filterstep(), with fwidth() done right.\r\n// threshold is constant, value is smoothly varying\r\nfloat aastep(float threshold, float value)\r\n{\r\n\tfloat afwidth = 0.7 * length(vec2(dFdx(value), dFdy(value)));\r\n\treturn smoothstep(threshold - afwidth, threshold + afwidth, value); // GLSLs fwidth(value) is abs(dFdx(value)) + abs(dFdy(value))\r\n}\r\n\r\n// Helper functions to remap unsigned normalized floats [0.0, 1.0] coming from an integer texture to the range we need [-1, 1].\r\n// The transformations are very specifically designed to map integer texel values exactly to pixel centers, and vice versa.\r\nvec2 remap(vec2 floatdata)\r\n{\r\n\treturn floatdata * (texLevels - 1.0) / texLevels * 2.0 - 1.0;\r\n}\r\n\r\n// Samples a distance field texture\r\nfloat sampleField(vec2 uv, sampler2D tDiffuse)\r\n{\t\r\n\t// Compute texel-local (u,v) coordinates for the four closest texels\r\n\tvec2 uv00 = floor(uv - vec2(0.5)); // Lower left corner of lower left texel\r\n\tvec2 uvlerp = uv - uv00 - vec2(0.5); // Texel-local lerp blends [0,1]\r\n\t\r\n\t// Center st00 on lower left texel and rescale to [0,1] for texture lookup\r\n\tvec2 st00 = (uv00 + vec2(0.5)) * vec2(oneu, onev);\r\n\t\r\n\t// Compute distance value from four closest 8-bit RGBA texels\r\n\tvec4 T00 = texture2D(tDiffuse, st00);\r\n\tvec4 T10 = texture2D(tDiffuse, st00 + vec2(oneu, 0.0));\r\n\tvec4 T01 = texture2D(tDiffuse, st00 + vec2(0.0, onev));\r\n\tvec4 T11 = texture2D(tDiffuse, st00 + vec2(oneu, onev));\r\n\tfloat D00 = length(remap(T00.rg)) + (T00.b - 0.5) / texw;\r\n\tfloat D10 = length(remap(T10.rg)) + (T10.b - 0.5) / texw;\r\n\tfloat D01 = length(remap(T01.rg)) + (T01.b - 0.5) / texw;\r\n\tfloat D11 = length(remap(T11.rg)) + (T11.b - 0.5) / texw;\r\n\t\r\n\t// Interpolate along v\r\n\tvec2 D0_1 = mix(vec2(D00, D10), vec2(D01, D11), uvlerp.y);\r\n\t\r\n\t// Interpolate along u\r\n\tfloat D = mix(D0_1.x, D0_1.y, uvlerp.x);\r\n\t\r\n\treturn D;\r\n}\r\n\r\nvoid main()\r\n{\r\n\t// Scale texcoords to range ([0, texw], [0, texh])\r\n\tvec2 uv = vUv * vec2(texw, texh);\r\n\t\r\n\tfloat D = sampleField(uv, tDiffuse);\r\n\t\r\n\tfloat g0 = aastep(threshold0, D);\r\n\tfloat g1 = aastep(threshold1, D);\r\n\tfloat g2 = aastep(threshold2, D);\r\n\tfloat g3 = aastep(threshold3, D);\r\n\t\r\n\tif(g0 > 0.0)\r\n\t{\r\n\t\tgl_FragColor = vec4(vec3(aastep(stepThreshold0, sampleField(uv, pattern0))), 1.0);\r\n\t}\r\n\telse if(g1 > 0.0)\r\n\t{\r\n\t\tgl_FragColor = vec4(vec3(aastep(stepThreshold1, sampleField(uv, pattern1))), 1.0);\r\n\t}\r\n\telse if(g2 > 0.0)\r\n\t{\r\n\t\tgl_FragColor = vec4(vec3(aastep(stepThreshold2, sampleField(uv, pattern2))), 1.0);\r\n\t}\r\n\telse if(g3 > 0.0)\r\n\t{\r\n\t\tgl_FragColor = vec4(vec3(aastep(stepThreshold3, sampleField(uv, pattern3))), 1.0);\r\n\t}\r\n\telse\r\n\t{\r\n\t\tgl_FragColor = vec4(vec3(aastep(stepThreshold4, sampleField(uv, pattern4))), 1.0);\r\n\t}\r\n}";
+shaders_EDT_$DISPLAY_$DEMO.fragmentShader = "// Distance map contour texturing.\r\n// A reimplementation of Greens method, with a 16-bit 8:8 distance map and explicit bilinear interpolation.\r\n\r\n// Adapted for Amsterdam Light Festival concept work by Sam Twidale.\r\n// Original implementation by Stefan Gustavson 2011.\r\n// This code is in the public domain.\r\n\r\nvarying vec2 vUv;\r\nvarying float oneu;\r\nvarying float onev;\r\n\r\nuniform sampler2D tDiffuse;\r\nuniform float texw;\r\nuniform float texh;\r\nuniform float texLevels;\r\n\r\nuniform sampler2D pattern0;\r\nuniform sampler2D pattern1;\r\nuniform sampler2D pattern2;\r\nuniform sampler2D pattern3;\r\nuniform sampler2D pattern4;\r\n\r\nuniform float threshold0;\r\nuniform float threshold1;\r\nuniform float threshold2;\r\nuniform float threshold3;\r\nuniform float threshold4;\r\n\r\nuniform float angle0;\r\nuniform float angle1;\r\nuniform float angle2;\r\nuniform float angle3;\r\nuniform float angle4;\r\n\r\nuniform float stepThreshold0;\r\nuniform float stepThreshold1;\r\nuniform float stepThreshold2;\r\nuniform float stepThreshold3;\r\nuniform float stepThreshold4;\r\n\r\n// Replacement for RSLs filterstep(), with fwidth() done right.\r\n// threshold is constant, value is smoothly varying\r\nfloat aastep(float threshold, float value)\r\n{\r\n\tfloat afwidth = 0.7 * length(vec2(dFdx(value), dFdy(value)));\r\n\treturn smoothstep(threshold - afwidth, threshold + afwidth, value); // GLSLs fwidth(value) is abs(dFdx(value)) + abs(dFdy(value))\r\n}\r\n\r\n// Helper functions to remap unsigned normalized floats [0.0, 1.0] coming from an integer texture to the range we need [-1, 1].\r\n// The transformations are very specifically designed to map integer texel values exactly to pixel centers, and vice versa.\r\nvec2 remap(vec2 floatdata)\r\n{\r\n\treturn floatdata * (texLevels - 1.0) / texLevels * 2.0 - 1.0;\r\n}\r\n\r\n// Samples a distance field texture\r\nfloat sampleField(vec2 uv, sampler2D tDiffuse)\r\n{\t\r\n\t// Compute texel-local (u,v) coordinates for the four closest texels\r\n\tvec2 uv00 = floor(uv - vec2(0.5)); // Lower left corner of lower left texel\r\n\tvec2 uvlerp = uv - uv00 - vec2(0.5); // Texel-local lerp blends [0,1]\r\n\t\r\n\t// Center st00 on lower left texel and rescale to [0,1] for texture lookup\r\n\tvec2 st00 = (uv00 + vec2(0.5)) * vec2(oneu, onev);\r\n\t\r\n\t// Compute distance value from four closest 8-bit RGBA texels\r\n\tvec4 T00 = texture2D(tDiffuse, st00);\r\n\tvec4 T10 = texture2D(tDiffuse, st00 + vec2(oneu, 0.0));\r\n\tvec4 T01 = texture2D(tDiffuse, st00 + vec2(0.0, onev));\r\n\tvec4 T11 = texture2D(tDiffuse, st00 + vec2(oneu, onev));\r\n\tfloat D00 = length(remap(T00.rg)) + (T00.b - 0.5) / texw;\r\n\tfloat D10 = length(remap(T10.rg)) + (T10.b - 0.5) / texw;\r\n\tfloat D01 = length(remap(T01.rg)) + (T01.b - 0.5) / texw;\r\n\tfloat D11 = length(remap(T11.rg)) + (T11.b - 0.5) / texw;\r\n\t\r\n\t// Interpolate along v\r\n\tvec2 D0_1 = mix(vec2(D00, D10), vec2(D01, D11), uvlerp.y);\r\n\t\r\n\t// Interpolate along u\r\n\tfloat D = mix(D0_1.x, D0_1.y, uvlerp.x);\r\n\t\r\n\treturn D;\r\n}\r\n\r\nvec2 rotUV(vec2 uv, float angle)\r\n{\r\n\tfloat cosFactor = cos(angle);\r\n\tfloat sinFactor = sin(angle);\r\n\tuv = (uv - texw / 2.0) * mat2(cosFactor, sinFactor, -sinFactor, cosFactor);\r\n\treturn uv + texw / 2.0;\r\n}\r\n\r\nvoid main()\r\n{\r\n\t// Scale texcoords to range ([0, texw], [0, texh])\r\n\tvec2 uv = vUv * vec2(texw, texh);\r\n\t\r\n\tfloat D = sampleField(uv, tDiffuse);\r\n\t\r\n\tfloat g0 = aastep(threshold0, D);\r\n\tfloat g1 = aastep(threshold1, D);\r\n\tfloat g2 = aastep(threshold2, D);\r\n\tfloat g3 = aastep(threshold3, D);\r\n\t\r\n\tif(g0 > 0.0)\r\n\t{\r\n\t\tgl_FragColor = vec4(vec3(aastep(stepThreshold0, sampleField(rotUV(uv, angle0), pattern0))), 1.0);\r\n\t}\r\n\telse if(g1 > 0.0)\r\n\t{\r\n\t\tgl_FragColor = vec4(vec3(aastep(stepThreshold1, sampleField(rotUV(uv, angle1), pattern1))), 1.0);\r\n\t}\r\n\telse if(g2 > 0.0)\r\n\t{\r\n\t\tgl_FragColor = vec4(vec3(aastep(stepThreshold2, sampleField(rotUV(uv, angle2), pattern2))), 1.0);\r\n\t}\r\n\telse if(g3 > 0.0)\r\n\t{\r\n\t\tgl_FragColor = vec4(vec3(aastep(stepThreshold3, sampleField(rotUV(uv, angle3), pattern3))), 1.0);\r\n\t}\r\n\telse\r\n\t{\r\n\t\tgl_FragColor = vec4(vec3(aastep(stepThreshold4, sampleField(rotUV(uv, angle4), pattern4))), 1.0);\r\n\t}\r\n}";
 shaders_FXAA.uniforms = { tDiffuse : { type : "t", value : null}, resolution : { type : "v2", value : new THREE.Vector2(1024.0,1024.0)}};
 shaders_FXAA.vertexShader = "varying vec2 vUv;\r\n\r\nvoid main()\r\n{\r\n\tvUv = uv;\r\n\tgl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);\r\n}";
 shaders_FXAA.fragmentShader = "// Fast approximate anti-aliasing shader\r\n// Based on the three.js implementation: https://github.com/mrdoob/three.js/blob/master/examples/js/shaders/FXAAShader.js\r\n// Ported to three.js by alteredq: http://alteredqualia.com/ and davidedc: http://www.sketchpatch.net/\r\n// Ported to WebGL by @supereggbert: http://www.geeks3d.com/20110405/fxaa-fast-approximate-anti-aliasing-demo-glsl-opengl-test-radeon-geforce/\r\n// Originally implemented as NVIDIA FXAA by Timothy Lottes: http://timothylottes.blogspot.com/2011/06/fxaa3-source-released.html\r\n// Paper: http://developer.download.nvidia.com/assets/gamedev/files/sdk/11/FXAA_WhitePaper.pdf\r\n\r\n#define FXAA_REDUCE_MIN (1.0/128.0)\r\n#define FXAA_REDUCE_MUL (1.0/8.0)\r\n#define FXAA_SPAN_MAX 8.0\r\n\r\nvarying vec2 vUv;\r\n\r\nuniform sampler2D tDiffuse;\r\nuniform vec2 resolution;\r\n\r\nvoid main()\r\n{\r\n\tvec2 rres = vec2(1.0) / resolution;\r\n\t\r\n\t// Texture lookups to find RGB values in area of current fragment\r\n\tvec3 rgbNW = texture2D(tDiffuse, (gl_FragCoord.xy + vec2(-1.0, -1.0)) * rres).xyz;\r\n\tvec3 rgbNE = texture2D(tDiffuse, (gl_FragCoord.xy + vec2(1.0, -1.0)) * rres).xyz;\r\n\tvec3 rgbSW = texture2D(tDiffuse, (gl_FragCoord.xy + vec2(-1.0, 1.0)) * rres).xyz;\r\n\tvec3 rgbSE = texture2D(tDiffuse, (gl_FragCoord.xy + vec2(1.0, 1.0)) * rres).xyz;\r\n\tvec4 rgbaM = texture2D(tDiffuse, gl_FragCoord.xy  * rres);\r\n\tvec3 rgbM = rgbaM.xyz;\r\n\tfloat opacity = rgbaM.w;\r\n\t\r\n\t// Luminance estimates for colors around current fragment\r\n\tvec3 luma = vec3(0.299, 0.587, 0.114);\r\n\tfloat lumaNW = dot(rgbNW, luma);\r\n\tfloat lumaNE = dot(rgbNE, luma);\r\n\tfloat lumaSW = dot(rgbSW, luma);\r\n\tfloat lumaSE = dot(rgbSE, luma);\r\n\tfloat lumaM  = dot(rgbM, luma);\r\n\tfloat lumaMin = min(lumaM, min(min(lumaNW, lumaNE), min(lumaSW, lumaSE)));\r\n\tfloat lumaMax = max(lumaM, max(max(lumaNW, lumaNE), max(lumaSW, lumaSE)));\r\n\r\n\t// \r\n\tvec2 dir;\r\n\tdir.x = -((lumaNW + lumaNE) - (lumaSW + lumaSE));\r\n\tdir.y =  ((lumaNW + lumaSW) - (lumaNE + lumaSE));\r\n\r\n\tfloat dirReduce = max((lumaNW + lumaNE + lumaSW + lumaSE) * (0.25 * FXAA_REDUCE_MUL), FXAA_REDUCE_MIN);\r\n\r\n\tfloat rcpDirMin = 1.0 / (min(abs(dir.x), abs(dir.y)) + dirReduce);\r\n\tdir = min(vec2(FXAA_SPAN_MAX, FXAA_SPAN_MAX), max(vec2(-FXAA_SPAN_MAX, -FXAA_SPAN_MAX), dir * rcpDirMin)) * rres;\r\n\r\n\tvec3 rgbA = 0.5 * (texture2D(tDiffuse, gl_FragCoord.xy * rres + dir * (1.0 / 3.0 - 0.5 )).xyz + texture2D(tDiffuse, gl_FragCoord.xy * rres + dir * (2.0 / 3.0 - 0.5)).xyz);\r\n\tvec3 rgbB = rgbA * 0.5 + 0.25 * (texture2D(tDiffuse, gl_FragCoord.xy * rres + dir * -0.5).xyz + texture2D(tDiffuse, gl_FragCoord.xy * rres + dir * 0.5).xyz);\r\n\r\n\tfloat lumaB = dot(rgbB, luma);\r\n\t\r\n\tif ((lumaB < lumaMin) || (lumaB > lumaMax))\r\n\t{\r\n\t\tgl_FragColor = vec4(rgbA, opacity);\r\n\t}\r\n\telse\r\n\t{\r\n\t\tgl_FragColor = vec4(rgbB, opacity);\r\n\t}\r\n}";
+shaders_MedianFilter.uniforms = { tDiffuse : { type : "t", value : null}, resolution : { type : "v2", value : new THREE.Vector2(1024.0,1024.0)}};
+shaders_MedianFilter.vertexShader = "varying vec2 vUv;\r\n\r\nvoid main()\r\n{\r\n\tvUv = uv;\r\n\tgl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);\r\n}";
+shaders_MedianFilter.fragmentShader = "// 5x5 Median Filter, GLSL 1.0\r\n// Based on the implementation by Morgan McGuire and Kyle Whitson, 2006, Williams College, http://graphics.cs.williams.edu\r\n// Copyright (c) Morgan McGuire and Williams College, 2006. All rights reserved.\r\n//\r\n// Redistribution and use in source and binary forms, with or without\r\n// modification, are permitted provided that the following conditions are\r\n// met:\r\n//\r\n// Redistributions of source code must retain the above copyright notice,\r\n// this list of conditions and the following disclaimer.\r\n//\r\n// Redistributions in binary form must reproduce the above copyright\r\n// notice, this list of conditions and the following disclaimer in the\r\n// documentation and/or other materials provided with the distribution.\r\n// \r\n// THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS\r\n// \"AS IS\" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT\r\n// LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR\r\n// A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT\r\n// HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,\r\n// SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT\r\n// LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,\r\n// DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY\r\n// THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT\r\n// (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE\r\n// OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.\r\n\r\nvarying vec2 vUv;\r\n\r\nuniform sampler2D tDiffuse;\r\nuniform vec2 resolution;\r\n\r\n#define s2(a, b) tmp = a; a = min(a, b); b = max(tmp, b);\r\n#define t2(a, b) s2(v[a], v[b]);\r\n#define t24(a, b, c, d, e, f, g, h) t2(a, b); t2(c, d); t2(e, f); t2(g, h); \r\n#define t25(a, b, c, d, e, f, g, h, i, j) t24(a, b, c, d, e, f, g, h); t2(i, j);\r\n\r\nvoid main() {\r\n\t// Add window pixels to an array\r\n\tvec3 v[25];\r\n\tfor(int dX = -2; dX <= 2; ++dX) {\r\n\t\tfor(int dY = -2; dY <= 2; ++dY) {\r\n\t\t\tvec2 offset = vec2(float(dX), float(dY));\r\n\r\n\t\t\t// If a pixel in the window is located at (x + dX, y + dY), put it at index (dX + R)(2R + 1) + (dY + R) of the pixel array\r\n\t\t\t// This will fill the pixel array, with the top left pixel of the window at pixel[0] and the bottom right pixel of the window at pixel[N - 1]\r\n\t\t\tv[(dX + 2) * 5 + (dY + 2)] = texture2D(tDiffuse, vUv + offset * (vec2(1.0) / resolution)).rgb;\r\n\t\t}\r\n\t}\r\n\r\n\tvec3 tmp;\r\n\r\n\tt25(0, 1,\t\t3, 4,\t\t2, 4,\t\t2, 3,\t\t6, 7);\r\n\tt25(5, 7,\t\t5, 6,\t\t9, 7,\t\t1, 7,\t\t1, 4);\r\n\tt25(12, 13,\t\t11, 13,\t\t11, 12,\t\t15, 16,\t\t14, 16);\r\n\tt25(14, 15,\t\t18, 19,\t\t17, 19,\t\t17, 18,\t\t21, 22);\r\n\tt25(20, 22,\t\t20, 21,\t\t23, 24,\t\t2, 5,\t\t3, 6);\r\n\tt25(0, 6,\t\t0, 3,\t\t4, 7,\t\t1, 7,\t\t1, 4);\r\n\tt25(11, 14,\t\t8, 14,\t\t8, 11,\t\t12, 15,\t\t9, 15);\r\n\tt25(9, 12,\t\t13, 16,\t\t10, 16,\t\t10, 13,\t\t20, 23);\r\n\tt25(17, 23,\t\t17, 20,\t\t21, 24,\t\t18, 24,\t\t18, 21);\r\n\tt25(19, 22,\t\t8, 17,\t\t9, 18,\t\t0, 18,\t\t0, 9);\r\n\tt25(10, 19,\t\t1, 19,\t\t1, 10,\t\t11, 20,\t\t2, 20);\r\n\tt25(2, 11,\t\t12, 21,\t\t3, 21,\t\t3, 12,\t\t13, 22);\r\n\tt25(4, 22,\t\t4, 13,\t\t14, 23,\t\t5, 23,\t\t5, 14);\r\n\tt25(15, 24,\t\t6, 24,\t\t6, 15,\t\t7, 16,\t\t7, 19);\r\n\tt25(3, 11,\t\t5, 17,\t\t11, 17,\t\t9, 17,\t\t4, 10);\r\n\tt25(6, 12,\t\t7, 14,\t\t4, 6,\t\t4, 7,\t\t12, 14);\r\n\tt25(10, 14,\t\t6, 7,\t\t10, 12,\t\t6, 10,\t\t6, 17);\r\n\tt25(12, 17,\t\t7, 17,\t\t7, 10,\t\t12, 18,\t\t7, 12);\r\n\tt24(10, 18,\t\t12, 20,\t\t10, 20,\t\t10, 12);\r\n\r\n\tgl_FragColor.rgb = v[12];\r\n}";
 Main.main();
 })(typeof console != "undefined" ? console : {log:function(){}}, typeof window != "undefined" ? window : typeof global != "undefined" ? global : typeof self != "undefined" ? self : this);
 
