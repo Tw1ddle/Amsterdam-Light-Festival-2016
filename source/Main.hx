@@ -31,6 +31,7 @@ import three.WebGLRenderer;
 import three.WebGLRenderTarget;
 import three.Wrapping;
 import webgl.Detector;
+import shaders.BoxDenoise;
 
 class Histogram {
 	public inline function new(size:Int) {
@@ -111,9 +112,9 @@ class Main {
 	private var sceneComposer:EffectComposer; // The composer for post-processing the final scene
 	private var aaPass:ShaderPass; // Anti-aliasing pass
 	
-	private var medianPass:ShaderPass; // Median filter pass
+	private var denoisePass:ShaderPass; // Denoise pass
 	
-	private var medianWebcamTarget:WebGLRenderTarget; // The render target for the median filter
+	private var denoiseTarget:WebGLRenderTarget; // The render target for the median filter
 	private var blurIterations:Int; // The number of iterations of the Gaussian blur pass applied to the webcam feed
 	
 	private var feedLuminance(default, set):Float; // Approx average luminance of the last frame of the webcam feed (0-1)
@@ -304,10 +305,10 @@ class Main {
 		camera.lookAt(screen.position);
 		
 		// Setup passes		
-		medianWebcamTarget = new WebGLRenderTarget(webcamPotWidth, webcamPotHeight);
-		medianPass = new ShaderPass( { vertexShader: MedianFilter.vertexShader, fragmentShader: MedianFilter.fragmentShader, uniforms: MedianFilter.uniforms } );
-		medianPass.renderToScreen = false;
-		medianPass.uniforms.resolution.value.set(width, height);
+		denoiseTarget = new WebGLRenderTarget(webcamPotWidth, webcamPotHeight);
+		denoisePass = new ShaderPass( { vertexShader: BoxDenoise.vertexShader, fragmentShader: BoxDenoise.fragmentShader, uniforms: BoxDenoise.uniforms } );
+		denoisePass.renderToScreen = false;
+		denoisePass.uniforms.resolution.value.set(width, height);
 		
 		blurIterations = 1;
 		
@@ -385,7 +386,7 @@ class Main {
 		
 		sceneComposer.setSize(width, height);
 		aaPass.uniforms.resolution.value.set(width, height);
-		medianPass.uniforms.resolution.value.set(width, height);
+		denoisePass.uniforms.resolution.value.set(width, height);
 		
 		camera.aspect = width / height;
 		camera.updateProjectionMatrix();
@@ -411,21 +412,21 @@ class Main {
 					
 					sceneComposer.render(dt);
 				case PROCESSED_WEBCAM_FEED:					
-					medianPass.uniforms.tDiffuse.value = potVideoTexture;
-					medianPass.render(renderer, medianWebcamTarget, potVideoTexture, dt);
-										
+					denoisePass.uniforms.tDiffuse.value = potVideoTexture;
+					denoisePass.render(renderer, denoiseTarget, potVideoTexture, dt);
+					
 					screen.material = copyMaterial;
-					var blur = sdfMaker.blur(medianWebcamTarget, videoPing.width, videoPing.height, videoPing, videoPong, blurIterations);
+					var blur = sdfMaker.blur(denoiseTarget, videoPing.width, videoPing.height, videoPing, videoPong, blurIterations);
 					copyMaterial.uniforms.tDiffuse.value = blur;
 					
 					sceneComposer.render(dt);
 					
 				case FULL_EFFECT:					
-					medianPass.uniforms.tDiffuse.value = potVideoTexture;
-					medianPass.render(renderer, medianWebcamTarget, potVideoTexture, dt);
+					denoisePass.uniforms.tDiffuse.value = potVideoTexture;
+					denoisePass.render(renderer, denoiseTarget, potVideoTexture, dt);
 					
 					screen.material = sdfDisplayMaterial;
-					var sdf = sdfMaker.transformTexture(potVideoTexture, videoPing, videoPong, blurIterations);
+					var sdf = sdfMaker.transformRenderTarget(denoiseTarget, videoPing, videoPong, blurIterations);
 					sdfDisplayMaterial.uniforms.tDiffuse.value = sdf;
 					
 					sceneComposer.render(dt);
@@ -485,8 +486,8 @@ class Main {
 		
 		ShaderGUI.generate(shaderGUI, "EDT_DISPLAY", sdfDisplayMaterial.uniforms);
 		ShaderGUI.generate(shaderGUI, "EDT_SEED", EDT_SEED.uniforms);
-		ShaderGUI.generate(shaderGUI, "FXAA", FXAA.uniforms);
-		ShaderGUI.generate(shaderGUI, "MEDIAN_FILTER", MedianFilter.uniforms);
+		ShaderGUI.generate(shaderGUI, "FXAA", aaPass.uniforms);
+		ShaderGUI.generate(shaderGUI, "BOX_DENOISER", denoisePass.uniforms);
 		var f = ShaderGUI.generate(shaderGUI, "GAUSSIAN_BLUR", GaussianBlur.uniforms);
 		f.add(this, 'blurIterations').listen().min(1).max(60);
 		

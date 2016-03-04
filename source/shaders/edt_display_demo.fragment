@@ -1,7 +1,7 @@
 // Distance map contour texturing.
 // A reimplementation of Greens method, with a 16-bit 8:8 distance map and explicit bilinear interpolation.
 
-// Adapted for Amsterdam Light Show concept work by Sam Twidale.
+// Adapted for Amsterdam Light Festival concept work by Sam Twidale.
 // Original implementation by Stefan Gustavson 2011.
 // This code is in the public domain.
 

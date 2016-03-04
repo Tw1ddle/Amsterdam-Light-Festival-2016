@@ -1,0 +1,34 @@
+// Denoise shader.
+// Smooths over grainy noise in dark images using an 9x9 box filter, weighted by color intensity, similar to a bilateral filter.
+
+// Adapted for Amsterdam Light Festival concept work by Sam Twidale.
+// Based on the implementation from glfx.js by Evan Wallace: https://github.com/evanw/glfx.js
+// This code is MIT licensed.
+
+varying vec2 vUv;
+
+uniform sampler2D tDiffuse;
+uniform vec2 resolution;
+uniform float exponent;
+
+void main() 
+{
+	vec4 center = texture2D(tDiffuse, vUv);
+	vec4 color = vec4(0.0);
+	float total = 0.0;
+	
+	// 32x32
+	for (float x = -16.0; x <= 16.0; x += 1.0)
+	{
+		for (float y = -16.0; y <= 16.0; y += 1.0)
+		{
+			vec4 sample = texture2D(tDiffuse, vUv + vec2(x, y) / resolution);
+			float weight = 1.0 - abs(dot(sample.rgb - center.rgb, vec3(0.0625)));
+			weight = pow(weight, exponent);
+			color += sample * weight;
+			total += weight;
+		}
+	}
+	
+	gl_FragColor = color / total;
+}
