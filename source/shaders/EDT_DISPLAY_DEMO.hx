@@ -4,7 +4,7 @@ import util.FileReader;
 
 import three.Vector3;
 
-// Modified EDT_DISPLAY_AA shader with light show effects
+// Modified EDT_DISPLAY_AA shader with light festival effects
 class EDT_DISPLAY_DEMO {
 	public static var uniforms = {
 		tDiffuse: { type: "t", value: null },

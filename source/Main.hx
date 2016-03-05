@@ -77,7 +77,7 @@ class Histogram {
 
 class Main {
 	public static inline var PROJECT_NAME:String = "Biomimetics";
-	public static inline var REPO_URL:String = "https://github.com/Tw1ddle/Amsterdam-Light-Show-2016";
+	public static inline var REPO_URL:String = "https://github.com/Tw1ddle/Amsterdam-Light-Festival-2016";
 	public static inline var SAM_WEBSITE_URL:String = "http://samcodes.co.uk/";
 	public static inline var HARISH_WEBSITE_URL:String = "http://harishpersad.tumblr.com/";
 	public static inline var TWITTER_URL:String = "https://twitter.com/Sam_Twidale";

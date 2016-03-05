@@ -76,13 +76,13 @@ Main.prototype = {
 			unsupportedInfo.style.color = "#ffffff";
 			switch(glSupported) {
 			case 2:
-				unsupportedInfo.innerHTML = "Your browser does not support WebGL. Click <a href=\"" + "https://github.com/Tw1ddle/Amsterdam-Light-Show-2016" + "\" target=\"_blank\">here for project info</a> instead.";
+				unsupportedInfo.innerHTML = "Your browser does not support WebGL. Click <a href=\"" + "https://github.com/Tw1ddle/Amsterdam-Light-Festival-2016" + "\" target=\"_blank\">here for project info</a> instead.";
 				break;
 			case 1:
-				unsupportedInfo.innerHTML = "Your browser supports WebGL, but the feature appears to be disabled. Click <a href=\"" + "https://github.com/Tw1ddle/Amsterdam-Light-Show-2016" + "\" target=\"_blank\">here for project info</a> instead.";
+				unsupportedInfo.innerHTML = "Your browser supports WebGL, but the feature appears to be disabled. Click <a href=\"" + "https://github.com/Tw1ddle/Amsterdam-Light-Festival-2016" + "\" target=\"_blank\">here for project info</a> instead.";
 				break;
 			default:
-				unsupportedInfo.innerHTML = "Could not detect WebGL support. Click <a href=\"" + "https://github.com/Tw1ddle/Amsterdam-Light-Show-2016" + "\" target=\"_blank\">here for project info</a> instead.";
+				unsupportedInfo.innerHTML = "Could not detect WebGL support. Click <a href=\"" + "https://github.com/Tw1ddle/Amsterdam-Light-Festival-2016" + "\" target=\"_blank\">here for project info</a> instead.";
 			}
 			gameDiv.appendChild(unsupportedInfo);
 			return;
@@ -97,7 +97,7 @@ Main.prototype = {
 			missingExtensionInfo.style.width = "100%";
 			missingExtensionInfo.style.textAlign = "center";
 			missingExtensionInfo.style.color = "#ffffff";
-			missingExtensionInfo.innerHTML = "Missing required WebGL extension: " + extDerivatives + " Click <a href=\"" + "https://github.com/Tw1ddle/Amsterdam-Light-Show-2016" + "\" target=\"_blank\">here for project info</a> instead.";
+			missingExtensionInfo.innerHTML = "Missing required WebGL extension: " + extDerivatives + " Click <a href=\"" + "https://github.com/Tw1ddle/Amsterdam-Light-Festival-2016" + "\" target=\"_blank\">here for project info</a> instead.";
 			gameDiv.appendChild(missingExtensionInfo);
 			return;
 		}
@@ -115,7 +115,7 @@ Main.prototype = {
 		info.style.width = "100%";
 		info.style.textAlign = "center";
 		info.style.color = "white";
-		info.innerHTML = "<a href=\"" + "https://github.com/Tw1ddle/Amsterdam-Light-Show-2016" + "target=\"_blank\">" + "Biomimetics" + "</a> by <a href=\"" + "http://samcodes.co.uk/" + "\" target=\"_blank\">Sam Twidale</a> & <a href=\"" + "http://harishpersad.tumblr.com/" + "\" target=\"_blank\">Harish Persad</a>.";
+		info.innerHTML = "<a href=\"" + "https://github.com/Tw1ddle/Amsterdam-Light-Festival-2016" + "target=\"_blank\">" + "Biomimetics" + "</a> by <a href=\"" + "http://samcodes.co.uk/" + "\" target=\"_blank\">Sam Twidale</a> & <a href=\"" + "http://harishpersad.tumblr.com/" + "\" target=\"_blank\">Harish Persad</a>.";
 		container.appendChild(info);
 		var width = window.innerWidth * this.renderer.getPixelRatio();
 		var height = window.innerHeight * this.renderer.getPixelRatio();
@@ -689,7 +689,7 @@ Bool.__ename__ = ["Bool"];
 var Class = { __name__ : ["Class"]};
 var Enum = { };
 Main.PROJECT_NAME = "Biomimetics";
-Main.REPO_URL = "https://github.com/Tw1ddle/Amsterdam-Light-Show-2016";
+Main.REPO_URL = "https://github.com/Tw1ddle/Amsterdam-Light-Festival-2016";
 Main.SAM_WEBSITE_URL = "http://samcodes.co.uk/";
 Main.HARISH_WEBSITE_URL = "http://harishpersad.tumblr.com/";
 Main.TWITTER_URL = "https://twitter.com/Sam_Twidale";
