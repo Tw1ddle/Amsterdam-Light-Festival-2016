@@ -102,24 +102,50 @@ void main()
 	float g2 = aastep(threshold2, D);
 	float g3 = aastep(threshold3, D);
 	
-	if(g0 > 0.0)
+	if(vUv.y > 0.5)
 	{
-		gl_FragColor = vec4(vec3(aastep(stepThreshold0, sampleField(rotUV(uv, angle0), pattern0))), 1.0);
-	}
-	else if(g1 > 0.0)
-	{
-		gl_FragColor = vec4(vec3(aastep(stepThreshold1, sampleField(rotUV(uv, angle1), pattern1))), 1.0);
-	}
-	else if(g2 > 0.0)
-	{
-		gl_FragColor = vec4(vec3(aastep(stepThreshold2, sampleField(rotUV(uv, angle2), pattern2))), 1.0);
-	}
-	else if(g3 > 0.0)
-	{
-		gl_FragColor = vec4(vec3(aastep(stepThreshold3, sampleField(rotUV(uv, angle3), pattern3))), 1.0);
+		if(g0 > 0.0)
+		{
+			gl_FragColor = vec4(vec3(aastep(stepThreshold0, sampleField(rotUV(uv, angle0), pattern0))), 1.0);
+		}
+		else if(g1 > 0.0)
+		{
+			gl_FragColor = vec4(vec3(aastep(stepThreshold1, sampleField(rotUV(uv, angle1), pattern1))), 1.0);
+		}
+		else if(g2 > 0.0)
+		{
+			gl_FragColor = vec4(vec3(aastep(stepThreshold2, sampleField(rotUV(uv, angle2), pattern2))), 1.0);
+		}
+		else if(g3 > 0.0)
+		{
+			gl_FragColor = vec4(vec3(aastep(stepThreshold3, sampleField(rotUV(uv, angle3), pattern3))), 1.0);
+		}
+		else
+		{
+			gl_FragColor = vec4(0.0, 0.0, 0.0, 0.0);
+		}
 	}
 	else
 	{
-		gl_FragColor = vec4(vec3(aastep(stepThreshold4, sampleField(rotUV(uv, angle4), pattern4))), 1.0);
+		if(g0 > 0.0)
+		{
+			gl_FragColor = vec4(vec3(aastep(stepThreshold0, sampleField(rotUV(uv, angle0), pattern1))), 1.0);
+		}
+		else if(g1 > 0.0)
+		{
+			gl_FragColor = vec4(vec3(aastep(stepThreshold1, sampleField(rotUV(uv, angle1), pattern0))), 1.0);
+		}
+		else if(g2 > 0.0)
+		{
+			gl_FragColor = vec4(vec3(aastep(stepThreshold2, sampleField(rotUV(uv, angle2), pattern3))), 1.0);
+		}
+		else if(g3 > 0.0)
+		{
+			gl_FragColor = vec4(vec3(aastep(stepThreshold3, sampleField(rotUV(uv, angle3), pattern2))), 1.0);
+		}
+		else
+		{
+			gl_FragColor = vec4(1.0, 1.0, 1.0, 1.0);
+		}
 	}
 }

@@ -13,25 +13,24 @@ import sdf.generator.SDFMaker;
 import sdf.shaders.Copy;
 import sdf.shaders.EDT.EDT_SEED;
 import sdf.shaders.GaussianBlur;
+import shaders.BoxDenoise;
 import shaders.EDT_DISPLAY_DEMO;
 import shaders.FXAA;
-import shaders.MedianFilter;
 import stats.Stats;
 import three.Color;
 import three.ImageUtils;
 import three.Mesh;
 import three.PerspectiveCamera;
 import three.PlaneGeometry;
-import three.postprocessing.EffectComposer;
 import three.Scene;
 import three.ShaderMaterial;
 import three.Texture;
 import three.UniformsUtils;
-import three.WebGLRenderer;
 import three.WebGLRenderTarget;
+import three.WebGLRenderer;
 import three.Wrapping;
+import three.postprocessing.EffectComposer;
 import webgl.Detector;
-import shaders.BoxDenoise;
 
 class Histogram {
 	public inline function new(size:Int) {
