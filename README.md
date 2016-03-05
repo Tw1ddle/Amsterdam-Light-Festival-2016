@@ -1,14 +1,14 @@
-![Project logo](screenshots/amsterdam_light_festival_logo.png?raw=true "Amsterdam Light Festival Logo")
+![Amsterdam Light Festival Biomimetics](screenshots/amsterdam_light_festival_logo.png?raw=true "Concept Work Logo")
 
-Work in progress. Amsterdam Light Festival entry concept work by [Harish Persad](http://harishpersad.tumblr.com/) and [Sam Twidale](http://samcodes.co.uk/code/).
+Amsterdam Light Festival entry concept work by [Harish Persad](http://harishpersad.tumblr.com/) and [Sam Twidale](http://samcodes.co.uk/code/). The theme is [biomimetics](https://en.wikipedia.org/wiki/Biomimetics).
 
-Interact with the WebGL demo [in your browser](https://tw1ddle.github.io/Amsterdam-Light-Festival-2016/). The theme is [biomimetics](https://en.wikipedia.org/wiki/Biomimetics). Tested in Google Chrome.
+View the WebGL demo [in your browser](https://tw1ddle.github.io/Amsterdam-Light-Festival-2016/). Requires a webcam. Tested in Google Chrome.
 
 ## Features ##
 * Shaders operating on a webcam feed to produce disruptive patterns.
-* Basic controls for tweaking the demo.
-* Webcam feed denoising.
-* ~~Automatically adapt to feed luminance.~~
+* Controls for tweaking the visuals.
+* Webcam feed denoising filter.
+* ~~Adaptive luminance thresholds.~~
 * ~~More plans abound...~~
 
 ## Screenshots ##
