@@ -38,6 +38,12 @@ uniform float stepThreshold2;
 uniform float stepThreshold3;
 uniform float stepThreshold4;
 
+uniform float scale0;
+uniform float scale1;
+uniform float scale2;
+uniform float scale3;
+uniform float scale4;
+
 // Replacement for RSLs filterstep(), with fwidth() done right.
 // threshold is constant, value is smoothly varying
 float aastep(float threshold, float value)
@@ -106,19 +112,19 @@ void main()
 	{
 		if(g0 > 0.0)
 		{
-			gl_FragColor = vec4(vec3(aastep(stepThreshold0, sampleField(rotUV(uv, angle0), pattern0))), 1.0);
+			gl_FragColor = vec4(vec3(aastep(stepThreshold0, sampleField(rotUV(uv * scale0, angle0), pattern0))), 1.0);
 		}
 		else if(g1 > 0.0)
 		{
-			gl_FragColor = vec4(vec3(aastep(stepThreshold1, sampleField(rotUV(uv, angle1), pattern1))), 1.0);
+			gl_FragColor = vec4(vec3(aastep(stepThreshold1, sampleField(rotUV(uv * scale1, angle1), pattern1))), 1.0);
 		}
 		else if(g2 > 0.0)
 		{
-			gl_FragColor = vec4(vec3(aastep(stepThreshold2, sampleField(rotUV(uv, angle2), pattern2))), 1.0);
+			gl_FragColor = vec4(vec3(aastep(stepThreshold2, sampleField(rotUV(uv * scale2, angle2), pattern2))), 1.0);
 		}
 		else if(g3 > 0.0)
 		{
-			gl_FragColor = vec4(vec3(aastep(stepThreshold3, sampleField(rotUV(uv, angle3), pattern3))), 1.0);
+			gl_FragColor = vec4(vec3(aastep(stepThreshold3, sampleField(rotUV(uv * scale3, angle3), pattern3))), 1.0);
 		}
 		else
 		{
@@ -129,19 +135,19 @@ void main()
 	{
 		if(g0 > 0.0)
 		{
-			gl_FragColor = vec4(vec3(aastep(stepThreshold0, sampleField(rotUV(uv, angle0), pattern1))), 1.0);
+			gl_FragColor = vec4(vec3(aastep(stepThreshold0, sampleField(rotUV(uv * scale0, angle0), pattern1))), 1.0);
 		}
 		else if(g1 > 0.0)
 		{
-			gl_FragColor = vec4(vec3(aastep(stepThreshold1, sampleField(rotUV(uv, angle1), pattern0))), 1.0);
+			gl_FragColor = vec4(vec3(aastep(stepThreshold1, sampleField(rotUV(uv * scale1, angle1), pattern0))), 1.0);
 		}
 		else if(g2 > 0.0)
 		{
-			gl_FragColor = vec4(vec3(aastep(stepThreshold2, sampleField(rotUV(uv, angle2), pattern3))), 1.0);
+			gl_FragColor = vec4(vec3(aastep(stepThreshold2, sampleField(rotUV(uv * scale2, angle2), pattern3))), 1.0);
 		}
 		else if(g3 > 0.0)
 		{
-			gl_FragColor = vec4(vec3(aastep(stepThreshold3, sampleField(rotUV(uv, angle3), pattern2))), 1.0);
+			gl_FragColor = vec4(vec3(aastep(stepThreshold3, sampleField(rotUV(uv * scale3, angle3), pattern2))), 1.0);
 		}
 		else
 		{
