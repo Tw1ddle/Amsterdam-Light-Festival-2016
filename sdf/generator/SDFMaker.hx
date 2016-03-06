@@ -86,7 +86,7 @@ class SDFMaker {
 	}
 	
 	inline public function transformRenderTarget(target:WebGLRenderTarget, ?ping:WebGLRenderTarget, ?pong:WebGLRenderTarget, blurIterations:Int = 1):WebGLRenderTarget {
-		return transform(target, target.width, target.height, ping, pong, blurIterations);
+		return transform(target.texture, target.width, target.height, ping, pong, blurIterations);
 	}
 	
 	// Performs EDT on the texture, returning a render target with the result
@@ -94,7 +94,7 @@ class SDFMaker {
 		return transform(target, target.image.width, target.image.height, ping, pong, blurIterations);
 	}
 	
-	public function blur(texture:Dynamic, width:Float, height:Float, ping:WebGLRenderTarget, pong:WebGLRenderTarget, blurIterations:Int):WebGLRenderTarget {
+	public function blur(texture:Texture, width:Float, height:Float, ping:WebGLRenderTarget, pong:WebGLRenderTarget, blurIterations:Int):WebGLRenderTarget {
 		// Perform small Gaussian blur on the input, reducing the wavey or blockiness or poorly AA'd input images at the cost of the accuracy of the original shape
 		scene.overrideMaterial = blurMaterial;
 		blurMaterial.uniforms.resolution.value.set(width, height);
@@ -104,15 +104,15 @@ class SDFMaker {
 		texture.wrapS = Wrapping.RepeatWrapping;
 		texture.wrapT = Wrapping.RepeatWrapping;
 		
-		ping.minFilter = TextureFilter.LinearFilter;
-		ping.magFilter = TextureFilter.LinearFilter;
-		ping.wrapS = Wrapping.RepeatWrapping;
-		ping.wrapT = Wrapping.RepeatWrapping;
+		ping.texture.minFilter = TextureFilter.LinearFilter;
+		ping.texture.magFilter = TextureFilter.LinearFilter;
+		ping.texture.wrapS = Wrapping.RepeatWrapping;
+		ping.texture.wrapT = Wrapping.RepeatWrapping;
 		
-		pong.minFilter = TextureFilter.LinearFilter;
-		pong.magFilter = TextureFilter.LinearFilter;
-		pong.wrapS = Wrapping.RepeatWrapping;
-		pong.wrapT = Wrapping.RepeatWrapping;
+		pong.texture.minFilter = TextureFilter.LinearFilter;
+		pong.texture.magFilter = TextureFilter.LinearFilter;
+		pong.texture.wrapS = Wrapping.RepeatWrapping;
+		pong.texture.wrapT = Wrapping.RepeatWrapping;
 		
 		var iterations = blurIterations;
 		var tmp:Dynamic = null;
@@ -150,15 +150,15 @@ class SDFMaker {
 		texture.minFilter = TextureFilter.NearestFilter;
 		texture.magFilter = TextureFilter.NearestFilter;
 		
-		ping.wrapS = Wrapping.ClampToEdgeWrapping;
-		ping.wrapT = Wrapping.ClampToEdgeWrapping;
-		ping.minFilter = TextureFilter.NearestFilter;
-		ping.magFilter = TextureFilter.NearestFilter;
+		ping.texture.wrapS = Wrapping.ClampToEdgeWrapping;
+		ping.texture.wrapT = Wrapping.ClampToEdgeWrapping;
+		ping.texture.minFilter = TextureFilter.NearestFilter;
+		ping.texture.magFilter = TextureFilter.NearestFilter;
 		
-		pong.wrapS = Wrapping.ClampToEdgeWrapping;
-		pong.wrapT = Wrapping.ClampToEdgeWrapping;
-		pong.minFilter = TextureFilter.NearestFilter;
-		pong.magFilter = TextureFilter.NearestFilter;
+		pong.texture.wrapS = Wrapping.ClampToEdgeWrapping;
+		pong.texture.wrapT = Wrapping.ClampToEdgeWrapping;
+		pong.texture.minFilter = TextureFilter.NearestFilter;
+		pong.texture.magFilter = TextureFilter.NearestFilter;
 		
 		/*
 		// Test to display the blurred input texture
@@ -170,10 +170,12 @@ class SDFMaker {
 		return target;
 	}
 	
-	private function transform(texture:Dynamic, width:Float, height:Float, ?ping:WebGLRenderTarget, ?pong:WebGLRenderTarget, blurIterations:Int):WebGLRenderTarget {
+	private function transform(texture:Texture, width:Float, height:Float, ?ping:WebGLRenderTarget, ?pong:WebGLRenderTarget, blurIterations:Int):WebGLRenderTarget {
+		/*
 		#if debug
 		var start = haxe.Timer.stamp();
 		#end
+		*/
 		
 		if (ping == null) {
 			ping = new WebGLRenderTarget(width, height);
@@ -241,10 +243,12 @@ class SDFMaker {
 			pong.dispose();
 		}
 		
+		/*
 		#if debug
 		var duration = haxe.Timer.stamp() - start;
 		trace("Transform duration: " + duration);
 		#end
+		*/
 		
 		return last;
 	}

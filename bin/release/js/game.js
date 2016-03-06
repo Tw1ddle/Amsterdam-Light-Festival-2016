@@ -182,7 +182,8 @@ Main.prototype = {
 		this.screen = new THREE.Mesh(geometry,this.sdfDisplayMaterial);
 		this.scene.add(this.screen);
 		this.camera.lookAt(this.screen.position);
-		this.denoiseTarget = new THREE.WebGLRenderTarget(this.webcamPotWidth,this.webcamPotHeight);
+		this.denoiseTargetPing = new THREE.WebGLRenderTarget(this.webcamPotWidth,this.webcamPotHeight);
+		this.denoiseTargetPong = new THREE.WebGLRenderTarget(this.webcamPotWidth,this.webcamPotHeight);
 		this.denoisePass = new THREE.ShaderPass({ vertexShader : shaders_BoxDenoise.vertexShader, fragmentShader : shaders_BoxDenoise.fragmentShader, uniforms : shaders_BoxDenoise.uniforms});
 		this.denoisePass.renderToScreen = false;
 		this.denoisePass.uniforms.resolution.value.set(width,height);
@@ -201,11 +202,8 @@ Main.prototype = {
 		window.addEventListener("contextmenu",function(event1) {
 			event1.preventDefault();
 		},true);
-		window.addEventListener("keypress",function(event2) {
-			event2.preventDefault();
-		},true);
-		window.addEventListener("keydown",function(event3) {
-			event3.preventDefault();
+		gameDiv.addEventListener("click",function(event2) {
+			if(_g.videoElement.paused) _g.videoElement.play(); else _g.videoElement.pause();
 		},true);
 		var onMouseWheel = function(event) {
 			event.preventDefault();
@@ -246,18 +244,26 @@ Main.prototype = {
 				this.sceneComposer.render(Main.dt);
 				break;
 			case "Processed Webcam Feed":
+				this.denoisePass.uniforms.direction.value = 0.0;
 				this.denoisePass.uniforms.tDiffuse.value = this.potVideoTexture;
-				this.denoisePass.render(this.renderer,this.denoiseTarget,this.potVideoTexture,Main.dt);
+				this.denoisePass.render(this.renderer,this.denoiseTargetPing,this.potVideoTexture,Main.dt);
+				this.denoisePass.uniforms.direction.value = 1.0;
+				this.denoisePass.uniforms.tDiffuse.value = this.denoiseTargetPing;
+				this.denoisePass.render(this.renderer,this.denoiseTargetPong,this.potVideoTexture,Main.dt);
 				this.screen.material = this.copyMaterial;
-				var blur = this.sdfMaker.blur(this.denoiseTarget,this.videoPing.width,this.videoPing.height,this.videoPing,this.videoPong,this.blurIterations);
+				var blur = this.sdfMaker.blur(this.denoiseTargetPong.texture,this.videoPing.width,this.videoPing.height,this.videoPing,this.videoPong,this.blurIterations);
 				this.copyMaterial.uniforms.tDiffuse.value = blur;
 				this.sceneComposer.render(Main.dt);
 				break;
 			case "Full Effect":
+				this.denoisePass.uniforms.direction.value = 0.0;
 				this.denoisePass.uniforms.tDiffuse.value = this.potVideoTexture;
-				this.denoisePass.render(this.renderer,this.denoiseTarget,this.potVideoTexture,Main.dt);
+				this.denoisePass.render(this.renderer,this.denoiseTargetPing,this.potVideoTexture,Main.dt);
+				this.denoisePass.uniforms.direction.value = 1.0;
+				this.denoisePass.uniforms.tDiffuse.value = this.denoiseTargetPing;
+				this.denoisePass.render(this.renderer,this.denoiseTargetPong,this.potVideoTexture,Main.dt);
 				this.screen.material = this.sdfDisplayMaterial;
-				var sdf = this.sdfMaker.transformRenderTarget(this.denoiseTarget,this.videoPing,this.videoPong,this.blurIterations);
+				var sdf = this.sdfMaker.transformRenderTarget(this.denoiseTargetPong,this.videoPing,this.videoPong,this.blurIterations);
 				this.sdfDisplayMaterial.uniforms.tDiffuse.value = sdf;
 				this.sceneComposer.render(Main.dt);
 				this.set_feedLuminance(this.calculateAverageFrameLuminance(this.potVideoCanvas,this.potVideoCtx,(this.webcamPotWidth - this.webcamWidth) / 2,(this.webcamPotHeight - this.webcamHeight) / 2,null));
@@ -546,7 +552,7 @@ sdf_generator_SDFMaker.__name__ = true;
 sdf_generator_SDFMaker.prototype = {
 	transformRenderTarget: function(target,ping,pong,blurIterations) {
 		if(blurIterations == null) blurIterations = 1;
-		return this.transform(target,target.width,target.height,ping,pong,blurIterations);
+		return this.transform(target.texture,target.width,target.height,ping,pong,blurIterations);
 	}
 	,transformTexture: function(target,ping,pong,blurIterations) {
 		if(blurIterations == null) blurIterations = 1;
@@ -559,14 +565,14 @@ sdf_generator_SDFMaker.prototype = {
 		texture.magFilter = THREE.LinearFilter;
 		texture.wrapS = THREE.RepeatWrapping;
 		texture.wrapT = THREE.RepeatWrapping;
-		ping.minFilter = THREE.LinearFilter;
-		ping.magFilter = THREE.LinearFilter;
-		ping.wrapS = THREE.RepeatWrapping;
-		ping.wrapT = THREE.RepeatWrapping;
-		pong.minFilter = THREE.LinearFilter;
-		pong.magFilter = THREE.LinearFilter;
-		pong.wrapS = THREE.RepeatWrapping;
-		pong.wrapT = THREE.RepeatWrapping;
+		ping.texture.minFilter = THREE.LinearFilter;
+		ping.texture.magFilter = THREE.LinearFilter;
+		ping.texture.wrapS = THREE.RepeatWrapping;
+		ping.texture.wrapT = THREE.RepeatWrapping;
+		pong.texture.minFilter = THREE.LinearFilter;
+		pong.texture.magFilter = THREE.LinearFilter;
+		pong.texture.wrapS = THREE.RepeatWrapping;
+		pong.texture.wrapT = THREE.RepeatWrapping;
 		var iterations = blurIterations;
 		var tmp = null;
 		this.blurMaterial.uniforms.flip.value = 1;
@@ -599,14 +605,14 @@ sdf_generator_SDFMaker.prototype = {
 		texture.wrapT = THREE.ClampToEdgeWrapping;
 		texture.minFilter = THREE.NearestFilter;
 		texture.magFilter = THREE.NearestFilter;
-		ping.wrapS = THREE.ClampToEdgeWrapping;
-		ping.wrapT = THREE.ClampToEdgeWrapping;
-		ping.minFilter = THREE.NearestFilter;
-		ping.magFilter = THREE.NearestFilter;
-		pong.wrapS = THREE.ClampToEdgeWrapping;
-		pong.wrapT = THREE.ClampToEdgeWrapping;
-		pong.minFilter = THREE.NearestFilter;
-		pong.magFilter = THREE.NearestFilter;
+		ping.texture.wrapS = THREE.ClampToEdgeWrapping;
+		ping.texture.wrapT = THREE.ClampToEdgeWrapping;
+		ping.texture.minFilter = THREE.NearestFilter;
+		ping.texture.magFilter = THREE.NearestFilter;
+		pong.texture.wrapS = THREE.ClampToEdgeWrapping;
+		pong.texture.wrapT = THREE.ClampToEdgeWrapping;
+		pong.texture.minFilter = THREE.NearestFilter;
+		pong.texture.magFilter = THREE.NearestFilter;
 		return target;
 	}
 	,transform: function(texture,width,height,ping,pong,blurIterations) {
@@ -725,9 +731,9 @@ sdf_shaders_EDT_$DISPLAY_$ALPHA_$THRESHOLD.fragmentShader = "// Distance map con
 sdf_shaders_GaussianBlur.uniforms = { tDiffuse : { type : "t", value : null}, direction : { type : "v2", value : new THREE.Vector2(0,0)}, resolution : { type : "v2", value : new THREE.Vector2(1024.0,1024.0)}, flip : { type : "i", value : 0}};
 sdf_shaders_GaussianBlur.vertexShader = "varying vec2 vUv;\r\n\r\nvoid main()\r\n{\r\n\tvUv = uv;\r\n\tgl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);\r\n}";
 sdf_shaders_GaussianBlur.fragmentShader = "// Efficient Gaussian blur with linear sampling, based on https://github.com/Jam3/glsl-fast-gaussian-blur by Jam3\r\n// Also see http://rastergrid.com/blog/2010/09/efficient-gaussian-blur-with-linear-sampling/ by Daniel Rakos\r\n// Must use on a texture that has linear (gl.LINEAR) filtering, the linear sampling approach requires this to get info about two adjacent pixels from one texture read, making it faster than discrete sampling\r\n// Requires a horizontal and vertical pass to perform the full blur. It is written this way because a single pass involves many more texture reads\r\n\r\nvarying vec2 vUv;\r\n\r\nuniform sampler2D tDiffuse;\r\nuniform vec2 resolution;\r\nuniform vec2 direction;\r\nuniform int flip;\r\n\r\nvoid main()\r\n{\r\n\tvec2 uv = vUv;\r\n\t\r\n\tif(flip != 0)\r\n\t{\r\n\t\tuv.y = 1.0 - uv.y;\r\n\t}\r\n\t\r\n\tvec2 off1 = vec2(1.3846153846) * direction;\r\n\tvec2 off2 = vec2(3.2307692308) * direction;\r\n\tvec4 color = vec4(0.0);\r\n\tcolor += texture2D(tDiffuse, uv) * 0.2270270270;\r\n\tcolor += texture2D(tDiffuse, uv + (off1 / resolution)) * 0.3162162162;\r\n\tcolor += texture2D(tDiffuse, uv - (off1 / resolution)) * 0.3162162162;\r\n\tcolor += texture2D(tDiffuse, uv + (off2 / resolution)) * 0.0702702703;\r\n\tcolor += texture2D(tDiffuse, uv - (off2 / resolution)) * 0.0702702703;\r\n\tgl_FragColor = color;\r\n}";
-shaders_BoxDenoise.uniforms = { tDiffuse : { type : "t", value : null}, resolution : { type : "v2", value : new THREE.Vector2(1024.0,1024.0)}, exponent : { type : "f", value : 15.0, min : 0.0, max : 500.0}};
+shaders_BoxDenoise.uniforms = { tDiffuse : { type : "t", value : null}, resolution : { type : "v2", value : new THREE.Vector2(1024.0,1024.0)}, direction : { type : "f", value : 0.0}, exponent : { type : "f", value : 15.0, min : 0.0, max : 500.0}};
 shaders_BoxDenoise.vertexShader = "varying vec2 vUv;\r\n\r\nvoid main()\r\n{\r\n\tvUv = uv;\r\n\tgl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);\r\n}";
-shaders_BoxDenoise.fragmentShader = "// Denoise shader.\r\n// Smooths over grainy noise in dark images using an 9x9 box filter, weighted by color intensity, similar to a bilateral filter.\r\n\r\n// Adapted for Amsterdam Light Festival concept work by Sam Twidale.\r\n// Based on the implementation from glfx.js by Evan Wallace: https://github.com/evanw/glfx.js\r\n// This code is MIT licensed.\r\n\r\nvarying vec2 vUv;\r\n\r\nuniform sampler2D tDiffuse;\r\nuniform vec2 resolution;\r\nuniform float exponent;\r\n\r\nvoid main() \r\n{\r\n\tvec4 center = texture2D(tDiffuse, vUv);\r\n\tvec4 color = vec4(0.0);\r\n\tfloat total = 0.0;\r\n\t\r\n\t// 32x32\r\n\tfor (float x = -16.0; x <= 16.0; x += 1.0)\r\n\t{\r\n\t\tfor (float y = -16.0; y <= 16.0; y += 1.0)\r\n\t\t{\r\n\t\t\tvec4 sample = texture2D(tDiffuse, vUv + vec2(x, y) / resolution);\r\n\t\t\tfloat weight = 1.0 - abs(dot(sample.rgb - center.rgb, vec3(0.0625)));\r\n\t\t\tweight = pow(weight, exponent);\r\n\t\t\tcolor += sample * weight;\r\n\t\t\ttotal += weight;\r\n\t\t}\r\n\t}\r\n\t\r\n\tgl_FragColor = color / total;\r\n}";
+shaders_BoxDenoise.fragmentShader = "// Denoise shader.\r\n// Smooths over grainy noise in dark images using an 9x9 box filter, weighted by color intensity, similar to a bilateral filter.\r\n\r\n// Adapted for Amsterdam Light Festival concept work by Sam Twidale.\r\n// Based on the implementation from glfx.js by Evan Wallace: https://github.com/evanw/glfx.js\r\n// This code is MIT licensed.\r\n\r\nvarying vec2 vUv;\r\n\r\nuniform sampler2D tDiffuse;\r\nuniform vec2 resolution;\r\nuniform float exponent;\r\nuniform float direction;\r\n\r\nvoid main() \r\n{\r\n\tvec4 center = texture2D(tDiffuse, vUv);\r\n\tvec4 color = vec4(0.0);\r\n\tfloat total = 0.0;\r\n\t\r\n\tif(direction == 0.0)\r\n\t{\r\n\t\tfor (float i = -16.0; i <= 16.0; i += 1.0)\r\n\t\t{\r\n\t\t\tvec4 sample = texture2D(tDiffuse, vUv + vec2(i, 0.0) / resolution);\r\n\t\t\tfloat weight = 1.0 - abs(dot(sample.rgb - center.rgb, vec3(0.0625)));\r\n\t\t\tweight = pow(weight, exponent);\r\n\t\t\tcolor += sample * weight;\r\n\t\t\ttotal += weight;\r\n\t\t}\r\n\t}\r\n\telse if(direction != 0.0)\r\n\t{\r\n\t\tfor (float i = -16.0; i <= 16.0; i += 1.0)\r\n\t\t{\r\n\t\t\tvec4 sample = texture2D(tDiffuse, vUv + vec2(0.0, i) / resolution);\r\n\t\t\tfloat weight = 1.0 - abs(dot(sample.rgb - center.rgb, vec3(0.0625)));\r\n\t\t\tweight = pow(weight, exponent);\r\n\t\t\tcolor += sample * weight;\r\n\t\t\ttotal += weight;\r\n\t\t}\r\n\t}\r\n\t\r\n\tgl_FragColor = color / total;\r\n}";
 shaders_EDT_$DISPLAY_$DEMO.uniforms = { tDiffuse : { type : "t", value : null}, texw : { type : "f", value : 0.0}, texh : { type : "f", value : 0.0}, texLevels : { type : "f", value : 0.0}, threshold0 : { type : "f", value : 0.0, min : 0.0, max : 0.001}, threshold1 : { type : "f", value : 0.0, min : 0.0, max : 0.005}, threshold2 : { type : "f", value : 0.0, min : 0.0, max : 0.005}, threshold3 : { type : "f", value : 0.0, min : 0.0, max : 0.005}, threshold4 : { type : "f", value : 0.0, min : 0.0, max : 0.005}, angle0 : { type : "f", value : 0.0, min : -6.0, max : 6.0}, angle1 : { type : "f", value : 0.0, min : -6.0, max : 6.0}, angle2 : { type : "f", value : 0.0, min : -6.0, max : 6.0}, angle3 : { type : "f", value : 0.0, min : -6.0, max : 6.0}, angle4 : { type : "f", value : 0.0, min : -6.0, max : 6.0}, stepThreshold0 : { type : "f", value : 0.0, min : -0.001, max : 0.001}, stepThreshold1 : { type : "f", value : 0.0, min : -0.005, max : 0.005}, stepThreshold2 : { type : "f", value : 0.0, min : -0.005, max : 0.005}, stepThreshold3 : { type : "f", value : 0.0, min : -0.005, max : 0.005}, stepThreshold4 : { type : "f", value : 0.0, min : -0.005, max : 0.005}, pattern0 : { type : "t", value : null}, pattern1 : { type : "t", value : null}, pattern2 : { type : "t", value : null}, pattern3 : { type : "t", value : null}, pattern4 : { type : "t", value : null}};
 shaders_EDT_$DISPLAY_$DEMO.vertexShader = "// Adapted for three.js demo by Sam Twidale.\r\n// Original implementation by Stefan Gustavson 2010.\r\n// This code is in the public domain.\r\n\r\nvarying vec2 vUv;\r\nvarying float oneu;\r\nvarying float onev;\r\n\r\nuniform float texw;\r\nuniform float texh;\r\n\r\nvoid main()\r\n{\r\n\tvUv = uv;\r\n\t\r\n\t// Save divisions in some of the fragment shaders\r\n\toneu = 1.0 / texw;\r\n\tonev = 1.0 / texh;\r\n\t\r\n\tgl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);\r\n}";
 shaders_EDT_$DISPLAY_$DEMO.fragmentShader = "// Distance map contour texturing.\r\n// A reimplementation of Greens method, with a 16-bit 8:8 distance map and explicit bilinear interpolation.\r\n\r\n// Adapted for Amsterdam Light Festival concept work by Sam Twidale.\r\n// Original implementation by Stefan Gustavson 2011.\r\n// This code is in the public domain.\r\n\r\nvarying vec2 vUv;\r\nvarying float oneu;\r\nvarying float onev;\r\n\r\nuniform sampler2D tDiffuse;\r\nuniform float texw;\r\nuniform float texh;\r\nuniform float texLevels;\r\n\r\nuniform sampler2D pattern0;\r\nuniform sampler2D pattern1;\r\nuniform sampler2D pattern2;\r\nuniform sampler2D pattern3;\r\nuniform sampler2D pattern4;\r\n\r\nuniform float threshold0;\r\nuniform float threshold1;\r\nuniform float threshold2;\r\nuniform float threshold3;\r\nuniform float threshold4;\r\n\r\nuniform float angle0;\r\nuniform float angle1;\r\nuniform float angle2;\r\nuniform float angle3;\r\nuniform float angle4;\r\n\r\nuniform float stepThreshold0;\r\nuniform float stepThreshold1;\r\nuniform float stepThreshold2;\r\nuniform float stepThreshold3;\r\nuniform float stepThreshold4;\r\n\r\n// Replacement for RSLs filterstep(), with fwidth() done right.\r\n// threshold is constant, value is smoothly varying\r\nfloat aastep(float threshold, float value)\r\n{\r\n\tfloat afwidth = 0.7 * length(vec2(dFdx(value), dFdy(value)));\r\n\treturn smoothstep(threshold - afwidth, threshold + afwidth, value); // GLSLs fwidth(value) is abs(dFdx(value)) + abs(dFdy(value))\r\n}\r\n\r\n// Helper functions to remap unsigned normalized floats [0.0, 1.0] coming from an integer texture to the range we need [-1, 1].\r\n// The transformations are very specifically designed to map integer texel values exactly to pixel centers, and vice versa.\r\nvec2 remap(vec2 floatdata)\r\n{\r\n\treturn floatdata * (texLevels - 1.0) / texLevels * 2.0 - 1.0;\r\n}\r\n\r\n// Samples a distance field texture\r\nfloat sampleField(vec2 uv, sampler2D tDiffuse)\r\n{\t\r\n\t// Compute texel-local (u,v) coordinates for the four closest texels\r\n\tvec2 uv00 = floor(uv - vec2(0.5)); // Lower left corner of lower left texel\r\n\tvec2 uvlerp = uv - uv00 - vec2(0.5); // Texel-local lerp blends [0,1]\r\n\t\r\n\t// Center st00 on lower left texel and rescale to [0,1] for texture lookup\r\n\tvec2 st00 = (uv00 + vec2(0.5)) * vec2(oneu, onev);\r\n\t\r\n\t// Compute distance value from four closest 8-bit RGBA texels\r\n\tvec4 T00 = texture2D(tDiffuse, st00);\r\n\tvec4 T10 = texture2D(tDiffuse, st00 + vec2(oneu, 0.0));\r\n\tvec4 T01 = texture2D(tDiffuse, st00 + vec2(0.0, onev));\r\n\tvec4 T11 = texture2D(tDiffuse, st00 + vec2(oneu, onev));\r\n\tfloat D00 = length(remap(T00.rg)) + (T00.b - 0.5) / texw;\r\n\tfloat D10 = length(remap(T10.rg)) + (T10.b - 0.5) / texw;\r\n\tfloat D01 = length(remap(T01.rg)) + (T01.b - 0.5) / texw;\r\n\tfloat D11 = length(remap(T11.rg)) + (T11.b - 0.5) / texw;\r\n\t\r\n\t// Interpolate along v\r\n\tvec2 D0_1 = mix(vec2(D00, D10), vec2(D01, D11), uvlerp.y);\r\n\t\r\n\t// Interpolate along u\r\n\tfloat D = mix(D0_1.x, D0_1.y, uvlerp.x);\r\n\t\r\n\treturn D;\r\n}\r\n\r\nvec2 rotUV(vec2 uv, float angle)\r\n{\r\n\tfloat cosFactor = cos(angle);\r\n\tfloat sinFactor = sin(angle);\r\n\tuv = (uv - texw / 2.0) * mat2(cosFactor, sinFactor, -sinFactor, cosFactor);\r\n\treturn uv + texw / 2.0;\r\n}\r\n\r\nvoid main()\r\n{\r\n\t// Scale texcoords to range ([0, texw], [0, texh])\r\n\tvec2 uv = vUv * vec2(texw, texh);\r\n\t\r\n\tfloat D = sampleField(uv, tDiffuse);\r\n\t\r\n\tfloat g0 = aastep(threshold0, D);\r\n\tfloat g1 = aastep(threshold1, D);\r\n\tfloat g2 = aastep(threshold2, D);\r\n\tfloat g3 = aastep(threshold3, D);\r\n\t\r\n\tif(vUv.y > 0.5)\r\n\t{\r\n\t\tif(g0 > 0.0)\r\n\t\t{\r\n\t\t\tgl_FragColor = vec4(vec3(aastep(stepThreshold0, sampleField(rotUV(uv, angle0), pattern0))), 1.0);\r\n\t\t}\r\n\t\telse if(g1 > 0.0)\r\n\t\t{\r\n\t\t\tgl_FragColor = vec4(vec3(aastep(stepThreshold1, sampleField(rotUV(uv, angle1), pattern1))), 1.0);\r\n\t\t}\r\n\t\telse if(g2 > 0.0)\r\n\t\t{\r\n\t\t\tgl_FragColor = vec4(vec3(aastep(stepThreshold2, sampleField(rotUV(uv, angle2), pattern2))), 1.0);\r\n\t\t}\r\n\t\telse if(g3 > 0.0)\r\n\t\t{\r\n\t\t\tgl_FragColor = vec4(vec3(aastep(stepThreshold3, sampleField(rotUV(uv, angle3), pattern3))), 1.0);\r\n\t\t}\r\n\t\telse\r\n\t\t{\r\n\t\t\tgl_FragColor = vec4(0.0, 0.0, 0.0, 0.0);\r\n\t\t}\r\n\t}\r\n\telse\r\n\t{\r\n\t\tif(g0 > 0.0)\r\n\t\t{\r\n\t\t\tgl_FragColor = vec4(vec3(aastep(stepThreshold0, sampleField(rotUV(uv, angle0), pattern1))), 1.0);\r\n\t\t}\r\n\t\telse if(g1 > 0.0)\r\n\t\t{\r\n\t\t\tgl_FragColor = vec4(vec3(aastep(stepThreshold1, sampleField(rotUV(uv, angle1), pattern0))), 1.0);\r\n\t\t}\r\n\t\telse if(g2 > 0.0)\r\n\t\t{\r\n\t\t\tgl_FragColor = vec4(vec3(aastep(stepThreshold2, sampleField(rotUV(uv, angle2), pattern3))), 1.0);\r\n\t\t}\r\n\t\telse if(g3 > 0.0)\r\n\t\t{\r\n\t\t\tgl_FragColor = vec4(vec3(aastep(stepThreshold3, sampleField(rotUV(uv, angle3), pattern2))), 1.0);\r\n\t\t}\r\n\t\telse\r\n\t\t{\r\n\t\t\tgl_FragColor = vec4(1.0, 1.0, 1.0, 1.0);\r\n\t\t}\r\n\t}\r\n}";

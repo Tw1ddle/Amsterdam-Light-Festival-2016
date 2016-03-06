@@ -113,10 +113,13 @@ class Main {
 	
 	private var denoisePass:ShaderPass; // Denoise pass
 	
-	private var denoiseTarget:WebGLRenderTarget; // The render target for the median filter
-	private var blurIterations:Int; // The number of iterations of the Gaussian blur pass applied to the webcam feed
+	// The render targets for the denoise filter
+	private var denoiseTargetPing:WebGLRenderTarget;
+	private var denoiseTargetPong:WebGLRenderTarget;
 	
-	private var feedLuminance(default, set):Float; // Approx average luminance of the last frame of the webcam feed (0-1)
+	private var blurIterations:Int; // The number of iterations of the Gaussian blur pass applied to the feed
+	
+	private var feedLuminance(default, set):Float; // Approx average luminance of the last frame of the feed (0-1)
 	
 	// WebRTC webcam elements
 	private var webcamWidth:Int;
@@ -241,6 +244,13 @@ class Main {
 		Sure.sure(nav.getUserMedia != null);
 		nav.getUserMedia({ video: true }, webcamLoadSuccess, webcamLoadError);
 		
+		/*
+		// Load a video instead of a webcam feed
+		videoElement.src = "assets/touhou.mp4";
+		videoElement.load();
+		videoElement.play();
+		*/
+		
 		// Make the POT canvas element and context that the video will be drawn to
 		potVideoCanvas = Browser.document.createCanvasElement();
 		potVideoCanvas.width = webcamPotWidth;
@@ -251,6 +261,7 @@ class Main {
 		
 		feedLuminance = 1.0; // Start with feed luminance maxed out
 		
+		// Helper method to create a pattern texture
 		var makeTexture = function(path:String):Texture {
 			var t = ImageUtils.loadTexture(path);
 			t.wrapS = Wrapping.RepeatWrapping;
@@ -304,11 +315,13 @@ class Main {
 		camera.lookAt(screen.position);
 		
 		// Setup passes		
-		denoiseTarget = new WebGLRenderTarget(webcamPotWidth, webcamPotHeight);
+		denoiseTargetPing = new WebGLRenderTarget(webcamPotWidth, webcamPotHeight);
+		denoiseTargetPong = new WebGLRenderTarget(webcamPotWidth, webcamPotHeight);
 		denoisePass = new ShaderPass( { vertexShader: BoxDenoise.vertexShader, fragmentShader: BoxDenoise.fragmentShader, uniforms: BoxDenoise.uniforms } );
 		denoisePass.renderToScreen = false;
 		denoisePass.uniforms.resolution.value.set(width, height);
 		
+		// Default Gaussian blur iterations
 		blurIterations = 1;
 		
 		sceneComposer = new EffectComposer(renderer);
@@ -336,14 +349,13 @@ class Main {
 			event.preventDefault();
 		}, true);
 		
-		// Add characters on keypress
-		Browser.window.addEventListener("keypress", function(event) {
-			event.preventDefault();
-		}, true);
-		
-		// Remove characters on delete/backspace
-		Browser.window.addEventListener("keydown", function(event) {
-			event.preventDefault();
+		// Toggles the video on click
+		gameDiv.addEventListener("click", function(event) {
+			if (videoElement.paused) {
+				videoElement.play();
+			} else {
+				videoElement.pause();
+			}
 		}, true);
 		
 		var onMouseWheel = function(event) {
@@ -367,11 +379,13 @@ class Main {
 		Browser.window.requestAnimationFrame(animate);
 	}
 	
+	// Successfully got webcam feed
 	private function webcamLoadSuccess(stream:Dynamic):Void {
 		trace("Succeeded getting webcam");
 		videoElement.src = windowUrl.createObjectURL(stream);
 	}
 	
+	// Failed to open webcam feed
 	private function webcamLoadError(error:Dynamic):Void {
 		trace("Failed to get webcam");
 	}
@@ -410,22 +424,30 @@ class Main {
 					copyMaterial.uniforms.tDiffuse.value = potVideoTexture;
 					
 					sceneComposer.render(dt);
-				case PROCESSED_WEBCAM_FEED:					
+				case PROCESSED_WEBCAM_FEED:
+					denoisePass.uniforms.direction.value = 0.0;
 					denoisePass.uniforms.tDiffuse.value = potVideoTexture;
-					denoisePass.render(renderer, denoiseTarget, potVideoTexture, dt);
+					denoisePass.render(renderer, denoiseTargetPing, potVideoTexture, dt);
+					denoisePass.uniforms.direction.value = 1.0;
+					denoisePass.uniforms.tDiffuse.value = denoiseTargetPing;
+					denoisePass.render(renderer, denoiseTargetPong, potVideoTexture, dt);
 					
 					screen.material = copyMaterial;
-					var blur = sdfMaker.blur(denoiseTarget, videoPing.width, videoPing.height, videoPing, videoPong, blurIterations);
+					var blur = sdfMaker.blur(denoiseTargetPong.texture, videoPing.width, videoPing.height, videoPing, videoPong, blurIterations);
 					copyMaterial.uniforms.tDiffuse.value = blur;
 					
 					sceneComposer.render(dt);
 					
 				case FULL_EFFECT:					
+					denoisePass.uniforms.direction.value = 0.0;
 					denoisePass.uniforms.tDiffuse.value = potVideoTexture;
-					denoisePass.render(renderer, denoiseTarget, potVideoTexture, dt);
+					denoisePass.render(renderer, denoiseTargetPing, potVideoTexture, dt);
+					denoisePass.uniforms.direction.value = 1.0;
+					denoisePass.uniforms.tDiffuse.value = denoiseTargetPing;
+					denoisePass.render(renderer, denoiseTargetPong, potVideoTexture, dt);
 					
 					screen.material = sdfDisplayMaterial;
-					var sdf = sdfMaker.transformRenderTarget(denoiseTarget, videoPing, videoPong, blurIterations);
+					var sdf = sdfMaker.transformRenderTarget(denoiseTargetPong, videoPing, videoPong, blurIterations);
 					sdfDisplayMaterial.uniforms.tDiffuse.value = sdf;
 					
 					sceneComposer.render(dt);
