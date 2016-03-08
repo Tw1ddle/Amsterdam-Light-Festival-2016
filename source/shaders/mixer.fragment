@@ -1,0 +1,12 @@
+// Mixes two textures according to a 0-1 RGBA ratio
+
+varying vec2 vUv;
+
+uniform sampler2D tLeft;
+uniform sampler2D tRight;
+uniform vec4 ratio;
+
+void main()
+{
+	gl_FragColor = mix(texture2D(tLeft, vUv), texture2D(tRight, vUv), ratio);
+}

@@ -8,6 +8,7 @@ import dat.ThreeObjectGUI;
 import js.Browser;
 import js.html.CanvasElement;
 import js.html.CanvasRenderingContext2D;
+import js.html.Element;
 import js.html.VideoElement;
 import sdf.generator.SDFMaker;
 import sdf.shaders.Copy;
@@ -20,7 +21,7 @@ import stats.Stats;
 import three.Color;
 import three.ImageUtils;
 import three.Mesh;
-import three.PerspectiveCamera;
+import three.OrthographicCamera;
 import three.PlaneGeometry;
 import three.Scene;
 import three.ShaderMaterial;
@@ -31,6 +32,7 @@ import three.WebGLRenderer;
 import three.Wrapping;
 import three.postprocessing.EffectComposer;
 import webgl.Detector;
+import shaders.Mixer;
 
 class Histogram {
 	public inline function new(size:Int) {
@@ -72,6 +74,7 @@ class Histogram {
 @:enum abstract DisplayMode(String) from String to String {
 	var WEBCAM_FEED = "Webcam Feed";
 	var PROCESSED_WEBCAM_FEED = "Processed Webcam Feed";
+	var FEED_EFFECT_MIXTURE = "Feed And Effect Mix";
 	var FULL_EFFECT = "Full Effect";
 }
 
@@ -86,7 +89,7 @@ class Main {
 	private var renderer:WebGLRenderer; // The renderer
 	private var displayMode:DisplayMode; // The mode for displaying the feed
 	private var scene:Scene; // The final scene
-	private var camera:PerspectiveCamera; // Camera for viewing the final scene
+	private var camera:OrthographicCamera; // Camera for viewing the final scene
 	private var screen:Mesh; // The screen on which the final scene is rendered
 	
 	private var copyMaterial:ShaderMaterial; // Display material for the regular webcam feed
@@ -97,6 +100,10 @@ class Main {
 	// For generating distance fields from the webcam feed
 	private var videoPing:WebGLRenderTarget;
 	private var videoPong:WebGLRenderTarget;
+	
+	// The render targets for the denoise filter
+	private var denoiseTargetPing:WebGLRenderTarget;
+	private var denoiseTargetPong:WebGLRenderTarget;
 
 	// Distance field textures
 	private var pattern0:Texture;
@@ -104,6 +111,9 @@ class Main {
 	private var pattern2:Texture;
 	private var pattern3:Texture;
 	private var pattern4:Texture;
+	
+	// The scene div
+	private var gameDiv:Element;
 	
 	// Luminance histogram
 	private var lumHistogram:Histogram;
@@ -113,9 +123,7 @@ class Main {
 	
 	private var denoisePass:ShaderPass; // Denoise pass
 	
-	// The render targets for the denoise filter
-	private var denoiseTargetPing:WebGLRenderTarget;
-	private var denoiseTargetPong:WebGLRenderTarget;
+	private var mixerPass:ShaderPass; // Texture mixing pass
 	
 	private var blurIterations:Int; // The number of iterations of the Gaussian blur pass applied to the feed
 	
@@ -149,8 +157,9 @@ class Main {
 		Browser.window.onload = onWindowLoaded;
 	}
 	
-	private inline function onWindowLoaded():Void {
-		var gameDiv = Browser.document.createElement("attach");
+	private inline function initialize():Void {
+		// Create scene div
+		gameDiv = Browser.document.createElement("attach");
 		
 		// WebGL support check
 		var glSupported:WebGLSupport = Detector.detect();
@@ -193,6 +202,7 @@ class Main {
 			return;
 		}
 		
+		// Initial renderer settings
         renderer.sortObjects = false;
 		renderer.autoClear = false;
 		renderer.setClearColor(new Color(0x000000));
@@ -214,21 +224,113 @@ class Main {
 		info.innerHTML = '<a href="' + REPO_URL + 'target="_blank">' + PROJECT_NAME + '</a> by <a href="' + SAM_WEBSITE_URL + '" target="_blank">Sam Twidale</a> & <a href="' + HARISH_WEBSITE_URL + '" target="_blank">Harish Persad</a>.';
 		container.appendChild(info);
 		
+		// Helper method to create a pattern texture
+		var makeTexture = function(path:String):Texture {
+			var t = ImageUtils.loadTexture(path);
+			t.wrapS = Wrapping.RepeatWrapping;
+			t.wrapT = Wrapping.RepeatWrapping;
+			t.repeat.set(2, 2);
+			return t;
+		};
+		
+		// Some patterned textures that are masked by the distance field
+		pattern0 = makeTexture("assets/pattern0.png");
+		pattern1 = makeTexture("assets/pattern1.png");
+		pattern2 = makeTexture("assets/pattern2.png");
+		pattern3 = makeTexture("assets/pattern3.png");
+		pattern4 = makeTexture("assets/pattern4.png");
+		
+		webcamWidth = 960;
+		webcamHeight = 540;
+		webcamPotWidth = nextPowerOfTwo(webcamWidth);
+		webcamPotHeight = nextPowerOfTwo(webcamHeight);
+		
+		makeRenderTargets(webcamPotWidth, webcamPotHeight);
+	}
+	
+	private inline function setupEvents():Void {
+		// Window resize
+		Browser.window.addEventListener("resize", function():Void {
+			onResize();
+		}, true);
+		
+		// Disable context menu opening
+		Browser.window.addEventListener("contextmenu", function(event) {
+			event.preventDefault();
+		}, true);
+		
+		// Toggles the video playback on click
+		gameDiv.addEventListener("click", function(event) {
+			if (videoElement.paused) {
+				videoElement.play();
+			} else {
+				videoElement.pause();
+			}
+		}, true);
+		
+		var onMouseWheel = function(event) {
+			event.preventDefault();
+		}
+		
+		// Zoom in or out manually
+		Browser.document.addEventListener("mousewheel", onMouseWheel, false);
+		Browser.document.addEventListener("DOMMouseScroll", onMouseWheel, false);
+	}
+	
+	private inline function start():Void {
+		#if debug
+		// Setup performance stats
+		setupStats();
+		
+		// Onscreen debug controls
+		setupGUI();
+		#end
+		
+		// Initial renderer setup
+		onResize();
+		
+		// Present game and start animation loop
+		gameDiv.appendChild(renderer.domElement);
+		Browser.window.requestAnimationFrame(animate);
+	}
+	
+	private inline function changeResolution():Void {
+		// Change camera resolution
+		// TODO reinitialize render targets
+	}
+	
+	private inline function makeRenderTargets(width:Int, height:Int):Void {
+		var makeTarget = function(target:WebGLRenderTarget):WebGLRenderTarget {
+			if (target != null && target.width == width && target.height == height) {
+				return target;
+			} else if (target != null) {
+				target.dispose();
+				return new WebGLRenderTarget(width, height);
+			} else {
+				return new WebGLRenderTarget(width, height);
+			}
+		}
+		videoPing = makeTarget(videoPing);
+		videoPong = makeTarget(videoPong);
+		denoiseTargetPing = makeTarget(denoiseTargetPing);
+		denoiseTargetPong = makeTarget(denoiseTargetPong);
+	}
+	
+	private inline function onWindowLoaded():Void {
+		initialize();
+		
 		var width = Browser.window.innerWidth * renderer.getPixelRatio();
 		var height = Browser.window.innerHeight * renderer.getPixelRatio();
 		
 		displayMode = DisplayMode.FULL_EFFECT; // Default to full effect
 		
 		scene = new Scene();
-		camera = new PerspectiveCamera(75, width / height, 1.0, 1000.0);
+		camera = new OrthographicCamera(width / -2, width / 2, height / 2, height / -2, 1.0, 1000.0);
+		
 		camera.position.z = 70;
 		scene.add(camera);
 		
 		// Setup webcam video feed
-		webcamWidth = 960;
-		webcamHeight = 540;
-		webcamPotWidth = 1024;
-		webcamPotHeight = 1024;
 		videoElement = Browser.document.createVideoElement();
 		videoElement.width = webcamWidth;
 		videoElement.height = webcamHeight;
@@ -261,22 +363,6 @@ class Main {
 		
 		feedLuminance = 1.0; // Start with feed luminance maxed out
 		
-		// Helper method to create a pattern texture
-		var makeTexture = function(path:String):Texture {
-			var t = ImageUtils.loadTexture(path);
-			t.wrapS = Wrapping.RepeatWrapping;
-			t.wrapT = Wrapping.RepeatWrapping;
-			t.repeat.set(2, 2);
-			return t;
-		};
-		
-		// Some patterned textures that are masked by the distance field
-		pattern0 = makeTexture("assets/pattern0.png");
-		pattern1 = makeTexture("assets/pattern1.png");
-		pattern2 = makeTexture("assets/pattern2.png");
-		pattern3 = makeTexture("assets/pattern3.png");
-		pattern4 = makeTexture("assets/pattern4.png");
-		
 		// Initialize the luminance histogram
 		lumHistogram = new Histogram(255);
 		
@@ -288,8 +374,6 @@ class Main {
 		
 		// Make the SDF maker
 		sdfMaker = new SDFMaker(renderer);
-		videoPing = new WebGLRenderTarget(webcamPotWidth, webcamPotHeight);
-		videoPong = new WebGLRenderTarget(webcamPotWidth, webcamPotHeight);
 		
 		sdfDisplayMaterial = new ShaderMaterial({
 			vertexShader: EDT_DISPLAY_DEMO.vertexShader,
@@ -308,21 +392,21 @@ class Main {
 		sdfDisplayMaterial.uniforms.pattern3.value = pattern3;
 		sdfDisplayMaterial.uniforms.pattern4.value = pattern4;
 		
-		var geometry = new PlaneGeometry(100, 100, 1, 1);
+		var geometry = new PlaneGeometry(webcamPotWidth, webcamPotHeight, 1, 1);
 		screen = new Mesh(geometry, sdfDisplayMaterial);
 		scene.add(screen);
 		
 		camera.lookAt(screen.position);
 		
-		// Setup passes		
-		denoiseTargetPing = new WebGLRenderTarget(webcamPotWidth, webcamPotHeight);
-		denoiseTargetPong = new WebGLRenderTarget(webcamPotWidth, webcamPotHeight);
+		// Setup passes
 		denoisePass = new ShaderPass( { vertexShader: BoxDenoise.vertexShader, fragmentShader: BoxDenoise.fragmentShader, uniforms: BoxDenoise.uniforms } );
 		denoisePass.renderToScreen = false;
 		denoisePass.uniforms.resolution.value.set(width, height);
 		
 		// Default Gaussian blur iterations
 		blurIterations = 1;
+		
+		mixerPass = new ShaderPass( { vertexShader: Mixer.vertexShader, fragmentShader: Mixer.fragmentShader, uniforms: Mixer.uniforms } );
 		
 		sceneComposer = new EffectComposer(renderer);
 		
@@ -335,48 +419,9 @@ class Main {
 		sceneComposer.addPass(renderPass);
 		sceneComposer.addPass(aaPass);
 		
-		// Initial renderer setup
-		onResize();
+		setupEvents();
 		
-		// Event setup
-		// Window resize event
-		Browser.window.addEventListener("resize", function():Void {
-			onResize();
-		}, true);
-		
-		// Disable context menu opening
-		Browser.window.addEventListener("contextmenu", function(event) {
-			event.preventDefault();
-		}, true);
-		
-		// Toggles the video on click
-		gameDiv.addEventListener("click", function(event) {
-			if (videoElement.paused) {
-				videoElement.play();
-			} else {
-				videoElement.pause();
-			}
-		}, true);
-		
-		var onMouseWheel = function(event) {
-			event.preventDefault();
-		}
-		
-		// Zoom in or out manually
-		Browser.document.addEventListener("mousewheel", onMouseWheel, false);
-		Browser.document.addEventListener("DOMMouseScroll", onMouseWheel, false);
-		
-		#if debug
-		// Setup performance stats
-		setupStats();
-		
-		// Onscreen debug controls
-		setupGUI();
-		#end
-		
-		// Present game and start animation loop
-		gameDiv.appendChild(renderer.domElement);
-		Browser.window.requestAnimationFrame(animate);
+		start();
 	}
 	
 	// Successfully got webcam feed
@@ -390,6 +435,16 @@ class Main {
 		trace("Failed to get webcam");
 	}
 	
+	private inline function nextPowerOfTwo(x:Int):Int {
+		var power:Int = 1;
+		
+		while(power < x) {
+			power *= 2;
+		}
+		
+		return power;
+	}
+	
 	// Called when browser window resizes
 	private function onResize():Void {
 		var width = Browser.window.innerWidth * renderer.getPixelRatio();
@@ -401,7 +456,6 @@ class Main {
 		aaPass.uniforms.resolution.value.set(width, height);
 		denoisePass.uniforms.resolution.value.set(width, height);
 		
-		camera.aspect = width / height;
 		camera.updateProjectionMatrix();
 	}
 	
@@ -419,12 +473,14 @@ class Main {
 			potVideoTexture.needsUpdate = true;
 			
 			switch(displayMode) {
-				case WEBCAM_FEED:					
+				case WEBCAM_FEED:
+					// Straight texture copy
 					screen.material = copyMaterial;
 					copyMaterial.uniforms.tDiffuse.value = potVideoTexture;
 					
 					sceneComposer.render(dt);
 				case PROCESSED_WEBCAM_FEED:
+					// Denoise, blur and copy
 					denoisePass.uniforms.direction.value = 0.0;
 					denoisePass.uniforms.tDiffuse.value = potVideoTexture;
 					denoisePass.render(renderer, denoiseTargetPing, potVideoTexture, dt);
@@ -438,7 +494,44 @@ class Main {
 					
 					sceneComposer.render(dt);
 					
-				case FULL_EFFECT:					
+				case FEED_EFFECT_MIXTURE:
+					// Denoise, blur, render full, render denoised, render mixed
+					denoisePass.uniforms.direction.value = 0.0;
+					denoisePass.uniforms.tDiffuse.value = potVideoTexture;
+					denoisePass.render(renderer, denoiseTargetPing, potVideoTexture, dt);
+					denoisePass.uniforms.direction.value = 1.0;
+					denoisePass.uniforms.tDiffuse.value = denoiseTargetPing;
+					denoisePass.render(renderer, denoiseTargetPong, potVideoTexture, dt);
+					
+					screen.material = sdfDisplayMaterial;
+					var sdf = sdfMaker.transformRenderTarget(denoiseTargetPong, videoPing, videoPong, blurIterations);
+					sdfDisplayMaterial.uniforms.tDiffuse.value = sdf;
+					
+					aaPass.renderToScreen = false;
+					sceneComposer.render(dt);
+					aaPass.renderToScreen = true;
+					
+					screen.material = copyMaterial;
+					var blur = sdfMaker.blur(denoiseTargetPong.texture, videoPing.width, videoPing.height, videoPing, videoPong, blurIterations);
+					copyMaterial.uniforms.tDiffuse.value = blur;
+					
+					aaPass.renderToScreen = false;
+					renderer.render(scene, camera, denoiseTargetPong, true);
+					aaPass.renderToScreen = true;
+					
+					mixerPass.uniforms.tLeft.value = sceneComposer.renderTarget2;
+					mixerPass.uniforms.tRight.value = denoiseTargetPong;
+					
+					mixerPass.renderToScreen = true;
+					mixerPass.render(renderer, null, null, dt);
+					mixerPass.renderToScreen = false;
+					
+					
+					// TODO use a weighted average over the last 10 or so frames?
+					feedLuminance = calculateAverageFrameLuminance(potVideoCanvas, potVideoCtx, (webcamPotWidth - webcamWidth) / 2, (webcamPotHeight - webcamHeight) / 2);
+					
+				case FULL_EFFECT:
+					// Denoise, blur, render full
 					denoisePass.uniforms.direction.value = 0.0;
 					denoisePass.uniforms.tDiffuse.value = potVideoTexture;
 					denoisePass.render(renderer, denoiseTargetPing, potVideoTexture, dt);
@@ -503,12 +596,13 @@ class Main {
 		ThreeObjectGUI.addItem(sceneGUI, camera, "World Camera");
 		ThreeObjectGUI.addItem(sceneGUI, scene, "Scene");
 		
-		shaderGUI.add(this, 'displayMode', { Full_Effect: FULL_EFFECT, Processed_Webcam_Feed: PROCESSED_WEBCAM_FEED, Webcam_Feed : WEBCAM_FEED } ).listen();
+		shaderGUI.add(this, 'displayMode', { Full_Effect: FULL_EFFECT, Processed_Webcam_Feed: PROCESSED_WEBCAM_FEED, Feed_And_Effect_Mix : FEED_EFFECT_MIXTURE, Webcam_Feed : WEBCAM_FEED } ).listen();
 		
 		ShaderGUI.generate(shaderGUI, "EDT_DISPLAY", sdfDisplayMaterial.uniforms);
 		ShaderGUI.generate(shaderGUI, "EDT_SEED", EDT_SEED.uniforms);
 		ShaderGUI.generate(shaderGUI, "FXAA", aaPass.uniforms);
 		ShaderGUI.generate(shaderGUI, "BOX_DENOISER", denoisePass.uniforms);
+		ShaderGUI.generate(shaderGUI, "TEXTURE_MIXER", mixerPass.uniforms);
 		var f = ShaderGUI.generate(shaderGUI, "GAUSSIAN_BLUR", GaussianBlur.uniforms);
 		f.add(this, 'blurIterations').listen().min(1).max(60);
 		

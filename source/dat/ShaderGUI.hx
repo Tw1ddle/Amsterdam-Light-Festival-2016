@@ -29,6 +29,17 @@ class ShaderGUI {
 					var f = folder.addFolder(key);
 					f.add(v.value, 'x').listen().name(key + "_x");
 					f.add(v.value, 'y').listen().name(key + "_y");
+				case "v3":
+					var f = folder.addFolder(key);
+					f.add(v.value, 'x').listen().name(key + "_x");
+					f.add(v.value, 'y').listen().name(key + "_y");
+					f.add(v.value, 'z').listen().name(key + "_z");
+				case "v4":
+					var f = folder.addFolder(key);
+					f.add(v.value, 'x').listen().name(key + "_x");
+					f.add(v.value, 'y').listen().name(key + "_y");
+					f.add(v.value, 'z').listen().name(key + "_z");
+					f.add(v.value, 'w').listen().name(key + "_w");
 			}
 		}
 		

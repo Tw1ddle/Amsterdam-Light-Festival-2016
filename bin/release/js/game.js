@@ -63,9 +63,8 @@ Main.main = function() {
 	var main = new Main();
 };
 Main.prototype = {
-	onWindowLoaded: function() {
-		var _g = this;
-		var gameDiv = window.document.createElement("attach");
+	initialize: function() {
+		this.gameDiv = window.document.createElement("attach");
 		var glSupported = WebGLDetector.detect();
 		if(glSupported != 0) {
 			var unsupportedInfo = window.document.createElement("div");
@@ -84,7 +83,7 @@ Main.prototype = {
 			default:
 				unsupportedInfo.innerHTML = "Could not detect WebGL support. Click <a href=\"" + "https://github.com/Tw1ddle/Amsterdam-Light-Festival-2016" + "\" target=\"_blank\">here for project info</a> instead.";
 			}
-			gameDiv.appendChild(unsupportedInfo);
+			this.gameDiv.appendChild(unsupportedInfo);
 			return;
 		}
 		this.renderer = new THREE.WebGLRenderer({ antialias : true});
@@ -98,7 +97,7 @@ Main.prototype = {
 			missingExtensionInfo.style.textAlign = "center";
 			missingExtensionInfo.style.color = "#ffffff";
 			missingExtensionInfo.innerHTML = "Missing required WebGL extension: " + extDerivatives + " Click <a href=\"" + "https://github.com/Tw1ddle/Amsterdam-Light-Festival-2016" + "\" target=\"_blank\">here for project info</a> instead.";
-			gameDiv.appendChild(missingExtensionInfo);
+			this.gameDiv.appendChild(missingExtensionInfo);
 			return;
 		}
 		this.renderer.sortObjects = false;
@@ -106,7 +105,7 @@ Main.prototype = {
 		this.renderer.setClearColor(new THREE.Color(0));
 		this.renderer.setPixelRatio(window.devicePixelRatio);
 		var gameAttachPoint = window.document.getElementById("game");
-		gameAttachPoint.appendChild(gameDiv);
+		gameAttachPoint.appendChild(this.gameDiv);
 		var container = window.document.createElement("div");
 		window.document.body.appendChild(container);
 		var info = window.document.createElement("div");
@@ -117,17 +116,69 @@ Main.prototype = {
 		info.style.color = "white";
 		info.innerHTML = "<a href=\"" + "https://github.com/Tw1ddle/Amsterdam-Light-Festival-2016" + "target=\"_blank\">" + "Biomimetics" + "</a> by <a href=\"" + "http://samcodes.co.uk/" + "\" target=\"_blank\">Sam Twidale</a> & <a href=\"" + "http://harishpersad.tumblr.com/" + "\" target=\"_blank\">Harish Persad</a>.";
 		container.appendChild(info);
+		var makeTexture = function(path) {
+			var t = THREE.ImageUtils.loadTexture(path);
+			t.wrapS = THREE.RepeatWrapping;
+			t.wrapT = THREE.RepeatWrapping;
+			t.repeat.set(2,2);
+			return t;
+		};
+		this.pattern0 = makeTexture("assets/pattern0.png");
+		this.pattern1 = makeTexture("assets/pattern1.png");
+		this.pattern2 = makeTexture("assets/pattern2.png");
+		this.pattern3 = makeTexture("assets/pattern3.png");
+		this.pattern4 = makeTexture("assets/pattern4.png");
+		this.webcamWidth = 960;
+		this.webcamHeight = 540;
+		this.webcamPotWidth = this.nextPowerOfTwo(this.webcamWidth);
+		this.webcamPotHeight = this.nextPowerOfTwo(this.webcamHeight);
+		this.makeRenderTargets(this.webcamPotWidth,this.webcamPotHeight);
+	}
+	,setupEvents: function() {
+		var _g = this;
+		window.addEventListener("resize",function() {
+			_g.onResize();
+		},true);
+		window.addEventListener("contextmenu",function(event1) {
+			event1.preventDefault();
+		},true);
+		this.gameDiv.addEventListener("click",function(event2) {
+			if(_g.videoElement.paused) _g.videoElement.play(); else _g.videoElement.pause();
+		},true);
+		var onMouseWheel = function(event) {
+			event.preventDefault();
+		};
+		window.document.addEventListener("mousewheel",onMouseWheel,false);
+		window.document.addEventListener("DOMMouseScroll",onMouseWheel,false);
+	}
+	,start: function() {
+		this.onResize();
+		this.gameDiv.appendChild(this.renderer.domElement);
+		window.requestAnimationFrame($bind(this,this.animate));
+	}
+	,changeResolution: function() {
+	}
+	,makeRenderTargets: function(width,height) {
+		var makeTarget = function(target) {
+			if(target != null && target.width == width && target.height == height) return target; else if(target != null) {
+				target.dispose();
+				return new THREE.WebGLRenderTarget(width,height);
+			} else return new THREE.WebGLRenderTarget(width,height);
+		};
+		this.videoPing = makeTarget(this.videoPing);
+		this.videoPong = makeTarget(this.videoPong);
+		this.denoiseTargetPing = makeTarget(this.denoiseTargetPing);
+		this.denoiseTargetPong = makeTarget(this.denoiseTargetPong);
+	}
+	,onWindowLoaded: function() {
+		this.initialize();
 		var width = window.innerWidth * this.renderer.getPixelRatio();
 		var height = window.innerHeight * this.renderer.getPixelRatio();
 		this.displayMode = "Full Effect";
 		this.scene = new THREE.Scene();
-		this.camera = new THREE.PerspectiveCamera(75,width / height,1.0,1000.0);
+		this.camera = new THREE.OrthographicCamera(width / -2,width / 2,height / 2,height / -2,1.0,1000.0);
 		this.camera.position.z = 70;
 		this.scene.add(this.camera);
-		this.webcamWidth = 960;
-		this.webcamHeight = 540;
-		this.webcamPotWidth = 1024;
-		this.webcamPotHeight = 1024;
 		var _this = window.document;
 		this.videoElement = _this.createElement("video");
 		this.videoElement.width = this.webcamWidth;
@@ -149,23 +200,9 @@ Main.prototype = {
 		this.potVideoTexture = new THREE.Texture(this.potVideoCanvas);
 		this.potVideoTexture.needsUpdate = true;
 		this.set_feedLuminance(1.0);
-		var makeTexture = function(path) {
-			var t = THREE.ImageUtils.loadTexture(path);
-			t.wrapS = THREE.RepeatWrapping;
-			t.wrapT = THREE.RepeatWrapping;
-			t.repeat.set(2,2);
-			return t;
-		};
-		this.pattern0 = makeTexture("assets/pattern0.png");
-		this.pattern1 = makeTexture("assets/pattern1.png");
-		this.pattern2 = makeTexture("assets/pattern2.png");
-		this.pattern3 = makeTexture("assets/pattern3.png");
-		this.pattern4 = makeTexture("assets/pattern4.png");
 		this.lumHistogram = new Histogram(255);
 		this.copyMaterial = new THREE.ShaderMaterial({ vertexShader : sdf_shaders_Copy.vertexShader, fragmentShader : sdf_shaders_Copy.fragmentShader, uniforms : sdf_shaders_Copy.uniforms});
 		this.sdfMaker = new sdf_generator_SDFMaker(this.renderer);
-		this.videoPing = new THREE.WebGLRenderTarget(this.webcamPotWidth,this.webcamPotHeight);
-		this.videoPong = new THREE.WebGLRenderTarget(this.webcamPotWidth,this.webcamPotHeight);
 		this.sdfDisplayMaterial = new THREE.ShaderMaterial({ vertexShader : shaders_EDT_$DISPLAY_$DEMO.vertexShader, fragmentShader : shaders_EDT_$DISPLAY_$DEMO.fragmentShader, uniforms : THREE.UniformsUtils.clone(shaders_EDT_$DISPLAY_$DEMO.uniforms)});
 		this.sdfDisplayMaterial.transparent = true;
 		this.sdfDisplayMaterial.derivatives = true;
@@ -178,16 +215,15 @@ Main.prototype = {
 		this.sdfDisplayMaterial.uniforms.pattern2.value = this.pattern2;
 		this.sdfDisplayMaterial.uniforms.pattern3.value = this.pattern3;
 		this.sdfDisplayMaterial.uniforms.pattern4.value = this.pattern4;
-		var geometry = new THREE.PlaneGeometry(100,100,1,1);
+		var geometry = new THREE.PlaneGeometry(this.webcamPotWidth,this.webcamPotHeight,1,1);
 		this.screen = new THREE.Mesh(geometry,this.sdfDisplayMaterial);
 		this.scene.add(this.screen);
 		this.camera.lookAt(this.screen.position);
-		this.denoiseTargetPing = new THREE.WebGLRenderTarget(this.webcamPotWidth,this.webcamPotHeight);
-		this.denoiseTargetPong = new THREE.WebGLRenderTarget(this.webcamPotWidth,this.webcamPotHeight);
 		this.denoisePass = new THREE.ShaderPass({ vertexShader : shaders_BoxDenoise.vertexShader, fragmentShader : shaders_BoxDenoise.fragmentShader, uniforms : shaders_BoxDenoise.uniforms});
 		this.denoisePass.renderToScreen = false;
 		this.denoisePass.uniforms.resolution.value.set(width,height);
 		this.blurIterations = 1;
+		this.mixerPass = new THREE.ShaderPass({ vertexShader : shaders_Mixer.vertexShader, fragmentShader : shaders_Mixer.fragmentShader, uniforms : shaders_Mixer.uniforms});
 		this.sceneComposer = new THREE.EffectComposer(this.renderer);
 		var renderPass = new THREE.RenderPass(this.scene,this.camera);
 		this.aaPass = new THREE.ShaderPass({ vertexShader : shaders_FXAA.vertexShader, fragmentShader : shaders_FXAA.fragmentShader, uniforms : shaders_FXAA.uniforms});
@@ -195,22 +231,9 @@ Main.prototype = {
 		this.aaPass.renderToScreen = true;
 		this.sceneComposer.addPass(renderPass);
 		this.sceneComposer.addPass(this.aaPass);
+		this.setupEvents();
 		this.onResize();
-		window.addEventListener("resize",function() {
-			_g.onResize();
-		},true);
-		window.addEventListener("contextmenu",function(event1) {
-			event1.preventDefault();
-		},true);
-		gameDiv.addEventListener("click",function(event2) {
-			if(_g.videoElement.paused) _g.videoElement.play(); else _g.videoElement.pause();
-		},true);
-		var onMouseWheel = function(event) {
-			event.preventDefault();
-		};
-		window.document.addEventListener("mousewheel",onMouseWheel,false);
-		window.document.addEventListener("DOMMouseScroll",onMouseWheel,false);
-		gameDiv.appendChild(this.renderer.domElement);
+		this.gameDiv.appendChild(this.renderer.domElement);
 		window.requestAnimationFrame($bind(this,this.animate));
 	}
 	,webcamLoadSuccess: function(stream) {
@@ -219,6 +242,11 @@ Main.prototype = {
 	,webcamLoadError: function(error) {
 		null;
 	}
+	,nextPowerOfTwo: function(x) {
+		var power = 1;
+		while(power < x) power *= 2;
+		return power;
+	}
 	,onResize: function() {
 		var width = window.innerWidth * this.renderer.getPixelRatio();
 		var height = window.innerHeight * this.renderer.getPixelRatio();
@@ -226,7 +254,6 @@ Main.prototype = {
 		this.sceneComposer.setSize(width,height);
 		this.aaPass.uniforms.resolution.value.set(width,height);
 		this.denoisePass.uniforms.resolution.value.set(width,height);
-		this.camera.aspect = width / height;
 		this.camera.updateProjectionMatrix();
 	}
 	,animate: function(time) {
@@ -255,7 +282,7 @@ Main.prototype = {
 				this.copyMaterial.uniforms.tDiffuse.value = blur;
 				this.sceneComposer.render(Main.dt);
 				break;
-			case "Full Effect":
+			case "Feed And Effect Mix":
 				this.denoisePass.uniforms.direction.value = 0.0;
 				this.denoisePass.uniforms.tDiffuse.value = this.potVideoTexture;
 				this.denoisePass.render(this.renderer,this.denoiseTargetPing,this.potVideoTexture,Main.dt);
@@ -265,6 +292,32 @@ Main.prototype = {
 				this.screen.material = this.sdfDisplayMaterial;
 				var sdf = this.sdfMaker.transformRenderTarget(this.denoiseTargetPong,this.videoPing,this.videoPong,this.blurIterations);
 				this.sdfDisplayMaterial.uniforms.tDiffuse.value = sdf;
+				this.aaPass.renderToScreen = false;
+				this.sceneComposer.render(Main.dt);
+				this.aaPass.renderToScreen = true;
+				this.screen.material = this.copyMaterial;
+				var blur1 = this.sdfMaker.blur(this.denoiseTargetPong.texture,this.videoPing.width,this.videoPing.height,this.videoPing,this.videoPong,this.blurIterations);
+				this.copyMaterial.uniforms.tDiffuse.value = blur1;
+				this.aaPass.renderToScreen = false;
+				this.renderer.render(this.scene,this.camera,this.denoiseTargetPong,true);
+				this.aaPass.renderToScreen = true;
+				this.mixerPass.uniforms.tLeft.value = this.sceneComposer.renderTarget2;
+				this.mixerPass.uniforms.tRight.value = this.denoiseTargetPong;
+				this.mixerPass.renderToScreen = true;
+				this.mixerPass.render(this.renderer,null,null,Main.dt);
+				this.mixerPass.renderToScreen = false;
+				this.set_feedLuminance(this.calculateAverageFrameLuminance(this.potVideoCanvas,this.potVideoCtx,(this.webcamPotWidth - this.webcamWidth) / 2,(this.webcamPotHeight - this.webcamHeight) / 2,null));
+				break;
+			case "Full Effect":
+				this.denoisePass.uniforms.direction.value = 0.0;
+				this.denoisePass.uniforms.tDiffuse.value = this.potVideoTexture;
+				this.denoisePass.render(this.renderer,this.denoiseTargetPing,this.potVideoTexture,Main.dt);
+				this.denoisePass.uniforms.direction.value = 1.0;
+				this.denoisePass.uniforms.tDiffuse.value = this.denoiseTargetPing;
+				this.denoisePass.render(this.renderer,this.denoiseTargetPong,this.potVideoTexture,Main.dt);
+				this.screen.material = this.sdfDisplayMaterial;
+				var sdf1 = this.sdfMaker.transformRenderTarget(this.denoiseTargetPong,this.videoPing,this.videoPong,this.blurIterations);
+				this.sdfDisplayMaterial.uniforms.tDiffuse.value = sdf1;
 				this.sceneComposer.render(Main.dt);
 				this.set_feedLuminance(this.calculateAverageFrameLuminance(this.potVideoCanvas,this.potVideoCtx,(this.webcamPotWidth - this.webcamWidth) / 2,(this.webcamPotHeight - this.webcamHeight) / 2,null));
 				break;
@@ -349,6 +402,19 @@ dat_ShaderGUI.generate = function(gui,folderName,uniforms,exclude) {
 			var f = folder.addFolder(key);
 			f.add(v.value,"x").listen().name(key + "_x");
 			f.add(v.value,"y").listen().name(key + "_y");
+			break;
+		case "v3":
+			var f1 = folder.addFolder(key);
+			f1.add(v.value,"x").listen().name(key + "_x");
+			f1.add(v.value,"y").listen().name(key + "_y");
+			f1.add(v.value,"z").listen().name(key + "_z");
+			break;
+		case "v4":
+			var f2 = folder.addFolder(key);
+			f2.add(v.value,"x").listen().name(key + "_x");
+			f2.add(v.value,"y").listen().name(key + "_y");
+			f2.add(v.value,"z").listen().name(key + "_z");
+			f2.add(v.value,"w").listen().name(key + "_w");
 			break;
 		}
 	}
@@ -676,6 +742,8 @@ var shaders_EDT_$DISPLAY_$DEMO = function() { };
 shaders_EDT_$DISPLAY_$DEMO.__name__ = true;
 var shaders_FXAA = function() { };
 shaders_FXAA.__name__ = true;
+var shaders_Mixer = function() { };
+shaders_Mixer.__name__ = true;
 var util_FileReader = function() { };
 util_FileReader.__name__ = true;
 var $_, $fid = 0;
@@ -740,5 +808,8 @@ shaders_EDT_$DISPLAY_$DEMO.fragmentShader = "// Distance map contour texturing.\
 shaders_FXAA.uniforms = { tDiffuse : { type : "t", value : null}, resolution : { type : "v2", value : new THREE.Vector2(1024.0,1024.0)}};
 shaders_FXAA.vertexShader = "varying vec2 vUv;\r\n\r\nvoid main()\r\n{\r\n\tvUv = uv;\r\n\tgl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);\r\n}";
 shaders_FXAA.fragmentShader = "// Fast approximate anti-aliasing shader\r\n// Based on the three.js implementation: https://github.com/mrdoob/three.js/blob/master/examples/js/shaders/FXAAShader.js\r\n// Ported to three.js by alteredq: http://alteredqualia.com/ and davidedc: http://www.sketchpatch.net/\r\n// Ported to WebGL by @supereggbert: http://www.geeks3d.com/20110405/fxaa-fast-approximate-anti-aliasing-demo-glsl-opengl-test-radeon-geforce/\r\n// Originally implemented as NVIDIA FXAA by Timothy Lottes: http://timothylottes.blogspot.com/2011/06/fxaa3-source-released.html\r\n// Paper: http://developer.download.nvidia.com/assets/gamedev/files/sdk/11/FXAA_WhitePaper.pdf\r\n\r\n#define FXAA_REDUCE_MIN (1.0/128.0)\r\n#define FXAA_REDUCE_MUL (1.0/8.0)\r\n#define FXAA_SPAN_MAX 8.0\r\n\r\nvarying vec2 vUv;\r\n\r\nuniform sampler2D tDiffuse;\r\nuniform vec2 resolution;\r\n\r\nvoid main()\r\n{\r\n\tvec2 rres = vec2(1.0) / resolution;\r\n\t\r\n\t// Texture lookups to find RGB values in area of current fragment\r\n\tvec3 rgbNW = texture2D(tDiffuse, (gl_FragCoord.xy + vec2(-1.0, -1.0)) * rres).xyz;\r\n\tvec3 rgbNE = texture2D(tDiffuse, (gl_FragCoord.xy + vec2(1.0, -1.0)) * rres).xyz;\r\n\tvec3 rgbSW = texture2D(tDiffuse, (gl_FragCoord.xy + vec2(-1.0, 1.0)) * rres).xyz;\r\n\tvec3 rgbSE = texture2D(tDiffuse, (gl_FragCoord.xy + vec2(1.0, 1.0)) * rres).xyz;\r\n\tvec4 rgbaM = texture2D(tDiffuse, gl_FragCoord.xy  * rres);\r\n\tvec3 rgbM = rgbaM.xyz;\r\n\tfloat opacity = rgbaM.w;\r\n\t\r\n\t// Luminance estimates for colors around current fragment\r\n\tvec3 luma = vec3(0.299, 0.587, 0.114);\r\n\tfloat lumaNW = dot(rgbNW, luma);\r\n\tfloat lumaNE = dot(rgbNE, luma);\r\n\tfloat lumaSW = dot(rgbSW, luma);\r\n\tfloat lumaSE = dot(rgbSE, luma);\r\n\tfloat lumaM  = dot(rgbM, luma);\r\n\tfloat lumaMin = min(lumaM, min(min(lumaNW, lumaNE), min(lumaSW, lumaSE)));\r\n\tfloat lumaMax = max(lumaM, max(max(lumaNW, lumaNE), max(lumaSW, lumaSE)));\r\n\r\n\t// \r\n\tvec2 dir;\r\n\tdir.x = -((lumaNW + lumaNE) - (lumaSW + lumaSE));\r\n\tdir.y =  ((lumaNW + lumaSW) - (lumaNE + lumaSE));\r\n\r\n\tfloat dirReduce = max((lumaNW + lumaNE + lumaSW + lumaSE) * (0.25 * FXAA_REDUCE_MUL), FXAA_REDUCE_MIN);\r\n\r\n\tfloat rcpDirMin = 1.0 / (min(abs(dir.x), abs(dir.y)) + dirReduce);\r\n\tdir = min(vec2(FXAA_SPAN_MAX, FXAA_SPAN_MAX), max(vec2(-FXAA_SPAN_MAX, -FXAA_SPAN_MAX), dir * rcpDirMin)) * rres;\r\n\r\n\tvec3 rgbA = 0.5 * (texture2D(tDiffuse, gl_FragCoord.xy * rres + dir * (1.0 / 3.0 - 0.5 )).xyz + texture2D(tDiffuse, gl_FragCoord.xy * rres + dir * (2.0 / 3.0 - 0.5)).xyz);\r\n\tvec3 rgbB = rgbA * 0.5 + 0.25 * (texture2D(tDiffuse, gl_FragCoord.xy * rres + dir * -0.5).xyz + texture2D(tDiffuse, gl_FragCoord.xy * rres + dir * 0.5).xyz);\r\n\r\n\tfloat lumaB = dot(rgbB, luma);\r\n\t\r\n\tif ((lumaB < lumaMin) || (lumaB > lumaMax))\r\n\t{\r\n\t\tgl_FragColor = vec4(rgbA, opacity);\r\n\t}\r\n\telse\r\n\t{\r\n\t\tgl_FragColor = vec4(rgbB, opacity);\r\n\t}\r\n}";
+shaders_Mixer.uniforms = { tLeft : { type : "t", value : null}, tRight : { type : "t", value : null}, ratio : { type : "v4", value : new THREE.Vector4(0.5,0.5,0.5,0.5)}};
+shaders_Mixer.vertexShader = "varying vec2 vUv;\r\n\r\nvoid main()\r\n{\r\n\tvUv = uv;\r\n\tgl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);\r\n}";
+shaders_Mixer.fragmentShader = "// Mixes two textures according to a 0-1 RGBA ratio\r\n\r\nvarying vec2 vUv;\r\n\r\nuniform sampler2D tLeft;\r\nuniform sampler2D tRight;\r\nuniform vec4 ratio;\r\n\r\nvoid main()\r\n{\r\n\tgl_FragColor = mix(texture2D(tLeft, vUv), texture2D(tRight, vUv), ratio);\r\n}";
 Main.main();
 })(typeof console != "undefined" ? console : {log:function(){}}, typeof window != "undefined" ? window : typeof global != "undefined" ? global : typeof self != "undefined" ? self : this);
