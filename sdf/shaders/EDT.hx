@@ -1,13 +1,15 @@
 package sdf.shaders;
 
 import util.FileReader;
+import three.Vector3;
 
 // Creates the seed texture from an initial input texture
 class EDT_SEED {
 	public static var uniforms = {
 		tDiffuse: { type: "t", value: null },
 		texLevels: { type: "f", value: 0.0 },
-		intensityOffset: { type: "f", value: 0.4 }
+		intensityOffset: { type: "f", value: 0.01 },
+		luminanceWeights: { type: "v3", value: new Vector3(0.2125, 0.7154, 0.0721) }
 	};
 	public static var vertexShader = FileReader.readFile("sdf/shaders/edt_seed.vertex");
 	public static var fragmentShader = FileReader.readFile("sdf/shaders/edt_seed.fragment");

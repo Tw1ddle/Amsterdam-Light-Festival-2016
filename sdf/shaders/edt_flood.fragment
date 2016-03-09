@@ -65,7 +65,7 @@ void testCandidate(in vec2 stepvec, inout vec4 bestseed)
 	vec3 texel = sampleTexture(tDiffuse, newvec).rgb;
 	vec4 newseed; // Closest point from that candidate (xy), its AA distance (z) and its grayscale value (w)
 	newseed.xy = remap(texel.rg);
-	if(newseed.x > -0.99999) // If the new seed is not "indeterminate distance"
+	if(newseed.x > -0.9999999999) // If the new seed is not "indeterminate distance"
 	{
 		newseed.xy = newseed.xy + stepvec;
 		

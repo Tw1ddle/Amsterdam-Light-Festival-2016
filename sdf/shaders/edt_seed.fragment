@@ -10,10 +10,11 @@ varying vec2 vUv;
 uniform sampler2D tDiffuse;
 uniform float texLevels;
 uniform float intensityOffset;
+uniform vec3 luminanceWeights;
 
 void main()
 {
-	float texel = dot(texture2D(tDiffuse, vUv).rgb, vec3(0.2125, 0.7154, 0.0721)) + intensityOffset;
+	float texel = clamp(dot(texture2D(tDiffuse, vUv).rgb, luminanceWeights) + intensityOffset, 0.0, 1.0);
 	
 	// Represents zero
 	float myzero = 0.5 * texLevels / (texLevels - 1.0);
@@ -25,5 +26,5 @@ void main()
 	float aadist = texel;
 	
 	// Pixels > 0.5 are objects, others are background
-	gl_FragColor = vec4(vec2(texel > 0.99999 ? myinfinity : myzero), aadist, 1.0);
+	gl_FragColor = vec4(vec2(texel > 0.9999999999 ? myinfinity : myzero), aadist, 1.0);
 }

@@ -72,10 +72,12 @@ class Histogram {
 }
 
 @:enum abstract DisplayMode(String) from String to String {
-	var WEBCAM_FEED = "Webcam Feed";
-	var PROCESSED_WEBCAM_FEED = "Processed Webcam Feed";
+	var VIDEO_FEED = "Video Feed";
+	var PROCESSED_VIDEO_FEED = "Processed Video Feed";
+	var EFFECT_PASSTHROUGH_MIXTURE = "Effect And Passthrough Mix";
 	var FEED_EFFECT_MIXTURE = "Feed And Effect Mix";
 	var FULL_EFFECT = "Full Effect";
+	var DISTANCE_FIELD = "Distance Field";
 }
 
 class Main {
@@ -92,12 +94,12 @@ class Main {
 	private var camera:OrthographicCamera; // Camera for viewing the final scene
 	private var screen:Mesh; // The screen on which the final scene is rendered
 	
-	private var copyMaterial:ShaderMaterial; // Display material for the regular webcam feed
+	private var copyMaterial:ShaderMaterial; // Display material for the regular video feed
 	
-	private var sdfMaker:SDFMaker; // The signed distance field creator, takes the webcam feed
+	private var sdfMaker:SDFMaker; // The signed distance field creator, takes the video feed
 	private var sdfDisplayMaterial:ShaderMaterial; // The display material for the signed distance fields
 	
-	// For generating distance fields from the webcam feed
+	// For generating distance fields from the video feed
 	private var videoPing:WebGLRenderTarget;
 	private var videoPong:WebGLRenderTarget;
 	
@@ -129,11 +131,11 @@ class Main {
 	
 	private var feedLuminance(default, set):Float; // Approx average luminance of the last frame of the feed (0-1)
 	
-	// WebRTC webcam elements
-	private var webcamWidth:Int;
-	private var webcamHeight:Int;
-	private var webcamPotWidth:Int;
-	private var webcamPotHeight:Int;
+	// WebRTC video elements
+	private var videoWidth(default, set):Int;
+	private var videoHeight(default, set):Int;
+	private var videoPotWidth:Int;
+	private var videoPotHeight:Int;
 	private var videoElement:VideoElement;
 	private var potVideoCanvas:CanvasElement;
 	private var potVideoCtx:CanvasRenderingContext2D;
@@ -240,12 +242,11 @@ class Main {
 		pattern3 = makeTexture("assets/pattern3.png");
 		pattern4 = makeTexture("assets/pattern4.png");
 		
-		webcamWidth = 960;
-		webcamHeight = 540;
-		webcamPotWidth = nextPowerOfTwo(webcamWidth);
-		webcamPotHeight = nextPowerOfTwo(webcamHeight);
+		// videoPot* set implicitly
+		videoWidth = 1920;
+		videoHeight = 1080;
 		
-		makeRenderTargets(webcamPotWidth, webcamPotHeight);
+		makeRenderTargets(videoPotWidth, videoPotHeight);
 	}
 	
 	private inline function setupEvents():Void {
@@ -330,14 +331,14 @@ class Main {
 		camera.position.z = 70;
 		scene.add(camera);
 		
-		// Setup webcam video feed
+		// Setup video feed
 		videoElement = Browser.document.createVideoElement();
-		videoElement.width = webcamWidth;
-		videoElement.height = webcamHeight;
+		videoElement.width = videoWidth;
+		videoElement.height = videoHeight;
 		videoElement.autoplay = true;
 		videoElement.loop = true;
 		
-		// Make webRTC webcam request
+		// Make webRTC video request
 		var nav:Dynamic = untyped navigator;
 		Sure.sure(nav != null);
 		windowUrl = untyped(window.URL || window.webkitURL);
@@ -355,8 +356,8 @@ class Main {
 		
 		// Make the POT canvas element and context that the video will be drawn to
 		potVideoCanvas = Browser.document.createCanvasElement();
-		potVideoCanvas.width = webcamPotWidth;
-		potVideoCanvas.height = webcamPotHeight;
+		potVideoCanvas.width = videoPotWidth;
+		potVideoCanvas.height = videoPotHeight;
 		potVideoCtx = potVideoCanvas.getContext("2d");
 		potVideoTexture = new Texture(potVideoCanvas); // TODO use mipmaps to estimate luminance?
 		potVideoTexture.needsUpdate = true;
@@ -383,8 +384,8 @@ class Main {
 		sdfDisplayMaterial.transparent = true;
 		sdfDisplayMaterial.derivatives = true;
 		sdfDisplayMaterial.uniforms.tDiffuse.value = videoPing; // Set proper value in animate loop
-		sdfDisplayMaterial.uniforms.texw.value = webcamPotWidth;
-		sdfDisplayMaterial.uniforms.texh.value = webcamPotHeight;
+		sdfDisplayMaterial.uniforms.texw.value = videoPotWidth;
+		sdfDisplayMaterial.uniforms.texh.value = videoPotHeight;
 		sdfDisplayMaterial.uniforms.texLevels.value = sdfMaker.texLevels;
 		sdfDisplayMaterial.uniforms.pattern0.value = pattern0;
 		sdfDisplayMaterial.uniforms.pattern1.value = pattern1;
@@ -392,7 +393,7 @@ class Main {
 		sdfDisplayMaterial.uniforms.pattern3.value = pattern3;
 		sdfDisplayMaterial.uniforms.pattern4.value = pattern4;
 		
-		var geometry = new PlaneGeometry(webcamPotWidth, webcamPotHeight, 1, 1);
+		var geometry = new PlaneGeometry(videoPotWidth, videoPotHeight, 1, 1);
 		screen = new Mesh(geometry, sdfDisplayMaterial);
 		scene.add(screen);
 		
@@ -468,18 +469,18 @@ class Main {
 		lastAnimationTime = time;
 		
 		if (videoElement.readyState == 4) { // 4 = HAVE_ENOUGH_DATA
-			potVideoCtx.drawImage(videoElement, (webcamPotWidth - webcamWidth) / 2, (webcamPotHeight - webcamHeight) / 2, webcamWidth, webcamHeight);
+			potVideoCtx.drawImage(videoElement, (videoPotWidth - videoWidth) / 2, (videoPotHeight - videoHeight) / 2, videoWidth, videoHeight);
 			potVideoTexture.image = potVideoCanvas;
 			potVideoTexture.needsUpdate = true;
 			
 			switch(displayMode) {
-				case WEBCAM_FEED:
+				case VIDEO_FEED:
 					// Straight texture copy
 					screen.material = copyMaterial;
 					copyMaterial.uniforms.tDiffuse.value = potVideoTexture;
 					
 					sceneComposer.render(dt);
-				case PROCESSED_WEBCAM_FEED:
+				case PROCESSED_VIDEO_FEED:
 					// Denoise, blur and copy
 					denoisePass.uniforms.direction.value = 0.0;
 					denoisePass.uniforms.tDiffuse.value = potVideoTexture;
@@ -526,9 +527,50 @@ class Main {
 					mixerPass.render(renderer, null, null, dt);
 					mixerPass.renderToScreen = false;
 					
+				case EFFECT_PASSTHROUGH_MIXTURE:
+					// Denoise, blur, render full, render passthrough, render mixed
+					denoisePass.uniforms.direction.value = 0.0;
+					denoisePass.uniforms.tDiffuse.value = potVideoTexture;
+					denoisePass.render(renderer, denoiseTargetPing, potVideoTexture, dt);
+					denoisePass.uniforms.direction.value = 1.0;
+					denoisePass.uniforms.tDiffuse.value = denoiseTargetPing;
+					denoisePass.render(renderer, denoiseTargetPong, potVideoTexture, dt);
 					
-					// TODO use a weighted average over the last 10 or so frames?
-					feedLuminance = calculateAverageFrameLuminance(potVideoCanvas, potVideoCtx, (webcamPotWidth - webcamWidth) / 2, (webcamPotHeight - webcamHeight) / 2);
+					screen.material = sdfDisplayMaterial;
+					var sdf = sdfMaker.transformRenderTarget(denoiseTargetPong, videoPing, videoPong, blurIterations);
+					sdfDisplayMaterial.uniforms.tDiffuse.value = sdf;
+					
+					aaPass.renderToScreen = false;
+					sceneComposer.render(dt);
+					aaPass.renderToScreen = true;
+					
+					screen.material = copyMaterial;
+					aaPass.renderToScreen = false;
+					renderer.render(scene, camera, denoiseTargetPong, true);
+					aaPass.renderToScreen = true;
+					
+					mixerPass.uniforms.tLeft.value = sceneComposer.renderTarget2;
+					mixerPass.uniforms.tRight.value = denoiseTargetPong;
+					
+					mixerPass.renderToScreen = true;
+					mixerPass.render(renderer, null, null, dt);
+					mixerPass.renderToScreen = false;
+					
+				case DISTANCE_FIELD:
+					// Denoise, blur, render distance field
+					denoisePass.uniforms.direction.value = 0.0;
+					denoisePass.uniforms.tDiffuse.value = potVideoTexture;
+					denoisePass.render(renderer, denoiseTargetPing, potVideoTexture, dt);
+					denoisePass.uniforms.direction.value = 1.0;
+					denoisePass.uniforms.tDiffuse.value = denoiseTargetPing;
+					denoisePass.render(renderer, denoiseTargetPong, potVideoTexture, dt);
+					
+					screen.material = copyMaterial;
+					var sdf = sdfMaker.transformRenderTarget(denoiseTargetPong, videoPing, videoPong, blurIterations);
+					copyMaterial.uniforms.tDiffuse.value = sdf;
+					
+					aaPass.renderToScreen = true;
+					sceneComposer.render(dt);
 					
 				case FULL_EFFECT:
 					// Denoise, blur, render full
@@ -546,7 +588,7 @@ class Main {
 					sceneComposer.render(dt);
 					
 					// TODO use a weighted average over the last 10 or so frames?
-					feedLuminance = calculateAverageFrameLuminance(potVideoCanvas, potVideoCtx, (webcamPotWidth - webcamWidth) / 2, (webcamPotHeight - webcamHeight) / 2);
+					feedLuminance = calculateAverageFrameLuminance(potVideoCanvas, potVideoCtx, (videoPotWidth - videoWidth) / 2, (videoPotHeight - videoHeight) / 2);
 			}
 		}
 		
@@ -563,7 +605,7 @@ class Main {
 			return 0.0;
 		}
 		
-		var data = context.getImageData(originX, originY, webcamWidth, webcamHeight);
+		var data = context.getImageData(originX, originY, videoWidth, videoHeight);
 		var total:Float = 0;
 		var count:Float = 0;
 		var i:Int = 0;
@@ -596,7 +638,13 @@ class Main {
 		ThreeObjectGUI.addItem(sceneGUI, camera, "World Camera");
 		ThreeObjectGUI.addItem(sceneGUI, scene, "Scene");
 		
-		shaderGUI.add(this, 'displayMode', { Full_Effect: FULL_EFFECT, Processed_Webcam_Feed: PROCESSED_WEBCAM_FEED, Feed_And_Effect_Mix : FEED_EFFECT_MIXTURE, Webcam_Feed : WEBCAM_FEED } ).listen();
+		shaderGUI.add(this, 'displayMode', {
+			Full_Effect: FULL_EFFECT, 
+			Processed_Video_Feed: PROCESSED_VIDEO_FEED,
+			Feed_And_Effect_Mix : FEED_EFFECT_MIXTURE, 
+			Effect_And_Passthrough_Mix: EFFECT_PASSTHROUGH_MIXTURE,
+			Distance_Field : DISTANCE_FIELD,
+			Video_Feed : VIDEO_FEED } ).listen();
 		
 		ShaderGUI.generate(shaderGUI, "EDT_DISPLAY", sdfDisplayMaterial.uniforms);
 		ShaderGUI.generate(shaderGUI, "EDT_SEED", EDT_SEED.uniforms);
@@ -619,4 +667,16 @@ class Main {
 		Browser.window.document.body.appendChild(stats.domElement);
 	}
 	#end
+	
+	private function set_videoWidth(width:Int):Int {
+		this.videoWidth = width;
+		videoPotWidth = nextPowerOfTwo(width);
+		return this.videoWidth;
+	}
+	
+	private function set_videoHeight(height:Int):Int {
+		this.videoHeight = height;
+		videoPotHeight = nextPowerOfTwo(height);
+		return this.videoHeight;
+	}
 }
