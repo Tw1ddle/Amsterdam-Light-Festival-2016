@@ -1,6 +1,5 @@
 -main Main
 
--lib actuate
 -lib sure
 
 -cp source

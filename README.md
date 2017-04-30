@@ -1,6 +1,8 @@
 ![Amsterdam Light Festival Biomimetics](screenshots/amsterdam_light_festival_logo.png?raw=true "Concept Work Logo")
 
-Amsterdam Light Festival entry concept work by [Harish Persad](http://harishpersad.tumblr.com/) and [Sam Twidale](http://samcodes.co.uk/code/). The theme is [biomimetics](https://en.wikipedia.org/wiki/Biomimetics).
+[![Build Status](https://img.shields.io/travis/Tw1ddle/Amsterdam-Light-Festival-2016.svg?style=flat-square)](https://travis-ci.org/Tw1ddle/Amsterdam-Light-Festival-2016)
+
+Concept work by [Harish Persad](http://harishpersad.tumblr.com/) and [Sam Twidale](http://samcodes.co.uk/code/) for the Amsterdam Light Festival 2016. The theme was [biomimetics](https://en.wikipedia.org/wiki/Biomimetics).
 
 View the WebGL demo [in your browser](https://tw1ddle.github.io/Amsterdam-Light-Festival-2016/). Requires a webcam. Tested in Google Chrome.
 
@@ -14,7 +16,7 @@ View the WebGL demo [in your browser](https://tw1ddle.github.io/Amsterdam-Light-
 ## Screenshots ##
 
 Early conceptual work:
-	
+
 ![Screenshot](screenshots/dazzle_patterns_screenshot_0.gif?raw=true "Dazzle patterns - Amsterdam Light Festival Concept Screenshot 1")
 
 ## Notes ##
