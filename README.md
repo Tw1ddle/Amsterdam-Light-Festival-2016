@@ -1,4 +1,4 @@
-![Amsterdam Light Festival Biomimetics](screenshots/amsterdam_light_festival_logo.png?raw=true "Concept Work Logo")
+[![Amsterdam Light Festival Biomimetics](screenshots/amsterdam_light_festival_logo.png?raw=true "Concept Work Logo")](https://tw1ddle.github.io/Amsterdam-Light-Festival-2016/)
 
 [![Build Status](https://img.shields.io/travis/Tw1ddle/Amsterdam-Light-Festival-2016.svg?style=flat-square)](https://travis-ci.org/Tw1ddle/Amsterdam-Light-Festival-2016)
 
@@ -10,8 +10,6 @@ View the WebGL demo [in your browser](https://tw1ddle.github.io/Amsterdam-Light-
 * Shaders operating on a webcam feed to produce disruptive patterns.
 * Controls for tweaking the visuals.
 * Webcam feed denoising filter.
-* ~~Adaptive luminance thresholds.~~
-* ~~More plans abound...~~
 
 ## Screenshots ##
 
@@ -21,6 +19,4 @@ Early conceptual work:
 
 ## Notes ##
 * The distance field shaders are based on the public domain implementation by [Stefan Gustavson](http://openglinsights.com/).
-* This project is influenced by [Dazzle painting](https://en.wikipedia.org/wiki/Dazzle_camouflage) and [patterns in nature](https://en.wikipedia.org/wiki/Patterns_in_nature).
 * Written using [Haxe](http://haxe.org/) and [three.js](http://threejs.org/).
-* Uses actuate and Sure from [haxelib](http://lib.haxe.org/).
