@@ -1,6 +1,6 @@
 [![Amsterdam Light Festival Biomimetics](screenshots/amsterdam_light_festival_logo.png?raw=true "Concept Work Logo")](https://tw1ddle.github.io/Amsterdam-Light-Festival-2016/)
 
-[![Build Status](https://img.shields.io/travis/Tw1ddle/Amsterdam-Light-Festival-2016.svg?style=flat-square)](https://travis-ci.org/Tw1ddle/Amsterdam-Light-Festival-2016)
+[![License](http://img.shields.io/:license-mit-blue.svg?style=flat-square)](https://github.com/Tw1ddle/Amsterdam-Light-Festival-2016/blob/master/LICENSE)
 
 Concept work by [Harish Persad](http://harishpersad.tumblr.com/) and [Sam Twidale](http://samcodes.co.uk/code/) for the Amsterdam Light Festival 2016. The theme was [biomimetics](https://en.wikipedia.org/wiki/Biomimetics).
 
